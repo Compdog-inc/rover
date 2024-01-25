@@ -1,0 +1,17 @@
+{
+	"folders": [
+		{
+			"path": "../brain"
+		},
+		{
+			"path": "../drivetrain"
+		},
+		{
+			"path": "../environment"
+		},
+		{
+			"path": "../lib"
+		}
+	],
+	"settings": {}
+}
