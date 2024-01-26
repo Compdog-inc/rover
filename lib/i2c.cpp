@@ -2,14 +2,22 @@
 #include "i2c.h"
 #include <util/twi.h>
 
+#define WAIT_FOR_TWINT()           \
+    while (!(TWCR & (1 << TWINT))) \
+        ;
+
+#define CLEAR_TWINT() TWCR |= (1 << TWINT);
+
 void TWI::enable()
 {
     TWCR |= (1 << TWEN) | (1 << TWIE);
+    TWBR = 12;
 }
 
 void TWI::disable()
 {
     TWCR &= ~((1 << TWEN) | (1 << TWIE));
+    TWBR = 0;
 }
 
 void TWI::setAddress(uint8_t address)
@@ -48,16 +56,56 @@ void TWI::setSlave()
     TWCR &= ~((1 << TWSTA) | (1 << TWSTO));
 }
 
-void TWI::resetState()
+bool sendStart()
+{
+    TWCR |= (1 << TWSTA);
+    CLEAR_TWINT();
+    WAIT_FOR_TWINT();
+    if (TW_STATUS != TW_START && TW_STATUS != TW_REP_START)
+    {
+        CLEAR_TWINT();
+        return false;
+    }
+    return true;
+}
+
+void TWI::sendTo(uint8_t address)
+{
+    if (!sendStart())
+        return;
+    // send SLA+W
+    TWDR = address | (TW_WRITE << 7);
+    CLEAR_TWINT();
+    WAIT_FOR_TWINT();
+
+    // check status
+    if (TW_STATUS != TW_MT_SLA_ACK)
+        return;
+}
+
+void TWI::requestFrom(uint8_t address)
+{
+    if (!sendStart())
+        return;
+    // send SLA+R
+    TWDR = address | (TW_READ << 7);
+    CLEAR_TWINT();
+    WAIT_FOR_TWINT();
+
+    // check status
+    if (TW_STATUS != TW_MR_SLA_ACK)
+        return;
+}
+
+void TWI::endTransfer()
 {
     TWCR |= (1 << TWSTO);
 }
 
-#define WAIT_FOR_TWINT()           \
-    while (!(TWCR & (1 << TWINT))) \
-        ;
-
-#define CLEAR_TWINT() TWCR |= (1 << TWINT);
+void TWI::resetState()
+{
+    TWCR |= (1 << TWSTO);
+}
 
 bool TWI::readAvailable()
 {
@@ -86,6 +134,7 @@ int TWI::readByte()
     CLEAR_TWINT();
     switch (status)
     {
+    case TW_MR_DATA_ACK:
     case TW_SR_DATA_ACK:
     case TW_SR_GCALL_DATA_ACK:
         return data;
@@ -118,7 +167,11 @@ bool TWI::write(uint8_t *data, int count)
     {
         WAIT_FOR_TWINT();
         uint8_t status = TW_STATUS;
-        if (status == TW_ST_SLA_ACK || status == TW_ST_ARB_LOST_SLA_ACK || status == TW_ST_DATA_ACK)
+        if (status == TW_ST_SLA_ACK ||
+            status == TW_ST_ARB_LOST_SLA_ACK ||
+            status == TW_ST_DATA_ACK ||
+            status == TW_MT_DATA_ACK ||
+            status == TW_MT_SLA_ACK)
         {
             TWDR = data[i];
             CLEAR_TWINT();

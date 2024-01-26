@@ -27,6 +27,13 @@ namespace TWI
     /// @brief Clears START/STOP registers to prepare for SR/ST modes
     void setSlave();
 
+    /// @brief Sends SLA+W request as master to the specified address
+    void sendTo(uint8_t address);
+    /// @brief Sends SLA+R request as master to the specified address
+    void requestFrom(uint8_t address);
+    /// @brief Ends current transfer of data in master mode (SLA+R/SLA+W)
+    void endTransfer();
+
     /// @brief Resets slave state to unaddressed
     void resetState();
 
