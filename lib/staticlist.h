@@ -26,6 +26,8 @@ struct StaticList
             array[count] = item;
             return count++; // return index and add count
         }
+
+        return -1;
     }
 
     uint8_t Count()
@@ -40,6 +42,7 @@ struct StaticList
             if (array[i] == item)
                 return i;
         }
+        return -1;
     }
 
     T *Remove(uint8_t index)

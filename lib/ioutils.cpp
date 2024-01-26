@@ -36,6 +36,7 @@ IOPort8::IOPort8(uint8_t port, uint8_t ddr, uint8_t irqIndex, volatile uint8_t *
     this->is_null = is_null;
     if (is_null)
         return;
+    this->port = port;
     this->ddr = ddr;
     this->lastPin = (*_pinaddr);
     this->irqIndex = irqIndex;
@@ -342,6 +343,10 @@ uint8_t IOPort32::getPinIndex(IOPort8 *port8, uint8_t localIndex)
     else if (*port8 == port_d)
     {
         return localIndex + _D0;
+    }
+    else
+    {
+        return localIndex;
     }
 #else
     // IOPort32 pin definitions were excluded from this build
