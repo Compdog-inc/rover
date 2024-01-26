@@ -2,7 +2,7 @@
 #include <constants.h>
 #include <ioutils.h>
 #include <clock.h>
-#include <twi.h>
+#include <i2c.h>
 
 typedef struct
 {
@@ -51,34 +51,19 @@ Command currentCommand = {};
 
 Clock clock;
 
-int main()
+float pidPowerTarget(float current, float target, unsigned long delta)
 {
-    clock.init();
-    TWI::enable();
-    // Wire.begin(DRIVETRAIN_I2C);
-    // Wire.onRequest(requestData);
-    // Wire.onReceive(receiveData);
-    unsigned long prevCommandExec = 0;
+    return target;
+}
 
-    while (1)
-    {
-        unsigned long time = clock.counter();
-        // Execute current command
-        if (processCommand(currentCommand, time - prevCommandExec))
-        {
-            // Check if it has new command queued and set that as current command
-            if (command.startTime != currentCommand.startTime)
-            {
-                currentCommand = command;
-            }
-            else // Else set current command to None
-            {
-                currentCommand.id = CMD_NONE;
-            }
-        }
-        prevCommandExec = time;
-        pidWait();
-    }
+bool pidThreshold(float current, float target)
+{
+    return current >= target - 0.001f && current <= target + 0.001f;
+}
+
+void pidWait()
+{
+    _delay_us(20);
 }
 
 // Processes a command and return true if it is complete, false if it needs to be called again
@@ -148,20 +133,6 @@ bool processCommand(Command cmd, unsigned long delta)
     return true;
 }
 
-float pidPowerTarget(float current, float target, unsigned long delta)
-{
-}
-
-bool pidThreshold(float current, float target)
-{
-    return current >= target - 0.001f && current <= target + 0.001f;
-}
-
-void pidWait()
-{
-    _delay_us(20);
-}
-
 void encodeFloat(uint8_t *buf, float f)
 {
     buf[0] = (uint32_t)f & 0xFF;
@@ -175,114 +146,145 @@ float decodeFloat(uint8_t *buf)
     return (float)(((uint32_t)buf[0]) & ((uint32_t)buf[1] << 8) & ((uint32_t)buf[2] << 16) & ((uint32_t)buf[3] << 24));
 }
 
+#define OK(val) \
+    if (!val)   \
+        return;
+
 void requestData()
 {
     uint8_t buf[4];
 
     // return the current left and right drivetrain power (current PWM value of motors)
     encodeFloat(buf, currentLeftPower);
-    Wire.write(buf, 4);
+    OK(TWI::write(buf, 4));
     encodeFloat(buf, currentRightPower);
-    Wire.write(buf, 4);
+    OK(TWI::write(buf, 4));
 
     // return the current command id
-    Wire.write(currentCommand.id);
+    OK(TWI::write(&currentCommand.id, 1));
 
     // return the left and right drivetrain velocity (set by master)
     encodeFloat(buf, leftVelocity);
-    Wire.write(buf, 4);
+    OK(TWI::write(buf, 4));
     encodeFloat(buf, rightVelocity);
-    Wire.write(buf, 4);
+    OK(TWI::write(buf, 4));
 
     // return the turn velocity (set by master)
     encodeFloat(buf, turnVelocity);
-    Wire.write(buf, 4);
+    OK(TWI::write(buf, 4));
 
     // return the current angle
     encodeFloat(buf, currentAngle);
-    Wire.write(buf, 4);
+    OK(TWI::write(buf, 4));
 }
 
-void receiveData(int numBytes)
+void receiveData()
 {
-    if (numBytes >= 1)
+    int id = TWI::readByte();
+    switch (id)
     {
-        int id = Wire.read();
-        numBytes--;
-        switch (id)
+    case CMD_DRIVETRAIN_DRIVE:
+    {
+        int direction = TWI::readByte();
+        command = {};
+        command.id = CMD_DRIVETRAIN_DRIVE;
+        command.startTime = clock.counter();
+        command.driveData.direction = (uint8_t)direction;
+        break;
+    }
+    case CMD_DRIVETRAIN_STOP:
+    {
+        command = {};
+        command.id = CMD_DRIVETRAIN_STOP;
+        command.startTime = clock.counter();
+        break;
+    }
+    case CMD_DRIVETRAIN_TURN:
+    {
+        uint8_t buf[4];
+        if (TWI::read(buf, 4) == 4)
         {
-        case CMD_DRIVETRAIN_DRIVE:
-        {
-            if (numBytes >= 1)
-            {
-                int direction = Wire.read();
-                command = {};
-                command.id = CMD_DRIVETRAIN_DRIVE;
-                command.startTime = clock.counter();
-                command.driveData.direction = (uint8_t)direction;
-            }
-            break;
-        }
-        case CMD_DRIVETRAIN_STOP:
-        {
+            float angle = decodeFloat(buf);
             command = {};
-            command.id = CMD_DRIVETRAIN_STOP;
+            command.id = CMD_DRIVETRAIN_TURN;
             command.startTime = clock.counter();
-            break;
+            command.turnData = {};
+            command.turnData.angle = angle;
         }
-        case CMD_DRIVETRAIN_TURN:
+        break;
+    }
+    case CMD_DRIVETRAIN_SET_VELOCITY:
+    {
+        uint8_t buf[8];
+        if (TWI::read(buf, 8) == 8)
         {
-            if (numBytes >= 4)
-            {
-                uint8_t buf[4];
-                if (Wire.readBytes(buf, 4) == 4)
-                {
-                    float angle = decodeFloat(buf);
-                    command = {};
-                    command.id = CMD_DRIVETRAIN_TURN;
-                    command.startTime = clock.counter();
-                    command.turnData = {};
-                    command.turnData.angle = angle;
-                }
-            }
-            break;
+            float leftVelocity = decodeFloat(buf);
+            float rightVelocity = decodeFloat(buf + 4);
+            command = {};
+            command.id = CMD_DRIVETRAIN_SET_VELOCITY;
+            command.startTime = clock.counter();
+            command.setVelocityData = {};
+            command.setVelocityData.leftVelocity = leftVelocity;
+            command.setVelocityData.rightVelocity = rightVelocity;
         }
-        case CMD_DRIVETRAIN_SET_VELOCITY:
+        break;
+    }
+    case CMD_DRIVETRAIN_MOVE:
+    {
+        uint8_t buf[4];
+        if (TWI::read(buf, 4) == 4)
         {
-            if (numBytes >= 8)
-            {
-                uint8_t buf[8];
-                if (Wire.readBytes(buf, 8) == 8)
-                {
-                    float leftVelocity = decodeFloat(buf);
-                    float rightVelocity = decodeFloat(buf + 4);
-                    command = {};
-                    command.id = CMD_DRIVETRAIN_SET_VELOCITY;
-                    command.startTime = clock.counter();
-                    command.setVelocityData = {};
-                    command.setVelocityData.leftVelocity = leftVelocity;
-                    command.setVelocityData.rightVelocity = rightVelocity;
-                }
-            }
-            break;
+            float distance = decodeFloat(buf);
+            command = {};
+            command.id = CMD_DRIVETRAIN_MOVE;
+            command.startTime = clock.counter();
+            command.moveData = {};
+            command.moveData.distance = distance;
         }
-        case CMD_DRIVETRAIN_MOVE:
+        break;
+    }
+    }
+}
+
+int main()
+{
+    clock.init();
+    TWI::enable();
+    TWI::connect();
+    TWI::disableGeneralCall();
+    TWI::setAddress(DRIVETRAIN_I2C);
+    TWI::setSlave();
+
+    unsigned long prevCommandExec = 0;
+
+    while (1)
+    {
+        unsigned long time = clock.counter();
+        // Execute current command
+        if (processCommand(currentCommand, time - prevCommandExec))
         {
-            if (numBytes >= 4)
+            // Check if it has new command queued and set that as current command
+            if (command.startTime != currentCommand.startTime)
             {
-                uint8_t buf[4];
-                if (Wire.readBytes(buf, 4) == 4)
-                {
-                    float distance = decodeFloat(buf);
-                    command = {};
-                    command.id = CMD_DRIVETRAIN_MOVE;
-                    command.startTime = clock.counter();
-                    command.moveData = {};
-                    command.moveData.distance = distance;
-                }
+                currentCommand = command;
             }
-            break;
+            else // Else set current command to None
+            {
+                currentCommand.id = CMD_NONE;
+            }
         }
+        prevCommandExec = time;
+
+        if (TWI::readAvailable())
+        {
+            receiveData();
         }
+
+        if (TWI::isDataRequested())
+        {
+            requestData();
+        }
+
+        pidWait();
     }
 }
