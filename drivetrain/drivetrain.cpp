@@ -3,6 +3,7 @@
 #include <ioutils.h>
 #include <clock.h>
 #include <i2c.h>
+#include <usart.h>
 
 typedef struct
 {
@@ -248,11 +249,18 @@ void receiveData()
 
 int main()
 {
+    USART::enable();
+    USART::setBaudRate(115200);
+    USART::redirectStdout();
+
+    printf("init\n");
+
     clock.init();
     TWI::enable();
     TWI::connect();
     TWI::disableGeneralCall();
     TWI::setAddress(DRIVETRAIN_I2C);
+    TWI::setAddressMask(0x00);
     TWI::setSlave();
 
     unsigned long prevCommandExec = 0;
@@ -275,14 +283,15 @@ int main()
         }
         prevCommandExec = time;
 
-        if (TWI::readAvailable())
-        {
-            receiveData();
-        }
-
         if (TWI::isDataRequested())
         {
+            printf("requested\n");
             requestData();
+        }
+        else if (TWI::readAvailable())
+        {
+            printf("reading\n");
+            receiveData();
         }
 
         pidWait();

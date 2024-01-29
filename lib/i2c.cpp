@@ -74,7 +74,7 @@ void TWI::sendTo(uint8_t address)
     if (!sendStart())
         return;
     // send SLA+W
-    TWDR = address | (TW_WRITE << 7);
+    TWDR = address + TW_WRITE;
     CLEAR_TWINT();
     WAIT_FOR_TWINT();
 
@@ -88,7 +88,7 @@ void TWI::requestFrom(uint8_t address)
     if (!sendStart())
         return;
     // send SLA+R
-    TWDR = address | (TW_READ << 7);
+    TWDR = address + TW_READ;
     CLEAR_TWINT();
     WAIT_FOR_TWINT();
 
@@ -189,7 +189,7 @@ bool TWI::write(uint8_t *data, int count)
 ISR(TWI_vect)
 {
     uint8_t status = TW_STATUS;
-
+    printf("int: 0x%x\n", status);
     switch (status)
     {
     case TW_ST_LAST_DATA:

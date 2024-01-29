@@ -21,6 +21,9 @@ int main()
     io.reset();
     io.set_dir(LED_PIN, IODir::Out);
 
+    drivetrain.drive(Direction::Forward);
+    return;
+
     while (1)
     {
         // Drivetrain test
