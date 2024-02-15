@@ -4,6 +4,8 @@
 #include <clock.h>
 #include <i2c.h>
 #include <usart.h>
+#include <motor.h>
+#include <status.h>
 
 typedef struct
 {
@@ -43,7 +45,7 @@ typedef struct
 float currentLeftPower = 0.0f;
 float currentRightPower = 0.0f;
 float leftVelocity = 1.0f;
-float rightVelocity = 1.0f;
+float rightVelocity = -1.0f;
 float turnVelocity = 1.0f;
 float currentAngle = 0.0f;
 
@@ -52,19 +54,28 @@ Command currentCommand = {};
 
 Clock clock;
 
+Motor motor0 = {9, 8};
+Motor motor1 = {11, 10};
+Motor motor2 = {12, 13};
+Motor motor3 = {27, 26};
+Motor motor4 = {29, 28};
+Motor motor5 = {31, 30};
+
 float pidPowerTarget(float current, float target, unsigned long delta)
 {
-    return target;
+    float deltaUs = clock.toMicros(delta);
+    float deltaS = deltaUs / 1000000.0f;
+    return current + fmin(1.0f, fmax(-1.0f, (target - current))) * deltaS * 4.0f;
 }
 
 bool pidThreshold(float current, float target)
 {
-    return current >= target - 0.001f && current <= target + 0.001f;
+    return current >= target - 0.01f && current <= target + 0.01f;
 }
 
 void pidWait()
 {
-    _delay_us(20);
+    _delay_us(1);
 }
 
 // Processes a command and return true if it is complete, false if it needs to be called again
@@ -182,6 +193,7 @@ void requestData()
 void receiveData()
 {
     int id = TWI::readByte();
+    printf("Byte: %i\n", id);
     switch (id)
     {
     case CMD_DRIVETRAIN_DRIVE:
@@ -260,10 +272,48 @@ int main()
     TWI::connect();
     TWI::disableGeneralCall();
     TWI::setAddress(DRIVETRAIN_I2C);
-    TWI::setAddressMask(0x00);
+    // TWI::setAddressMask(0x00);
     TWI::setSlave();
 
+    currentCommand.id = CMD_NONE;
+
     unsigned long prevCommandExec = 0;
+
+    printf("poweron reset ");
+    if (poweron_reset())
+    {
+        printf("yes\n");
+    }
+    else
+    {
+        printf("no\n");
+    }
+
+    printf("external reset ");
+    if (external_reset())
+    {
+        printf("yes\n");
+    }
+    else
+    {
+        printf("no\n");
+    }
+
+    printf("brownout reset ");
+    if (brownout_reset())
+    {
+        printf("yes\n");
+    }
+    else
+    {
+        printf("no\n");
+    }
+
+    if (brownout_reset() || watchdog_reset() || external_reset() || poweron_reset())
+    {
+        while (1)
+            ;
+    }
 
     while (1)
     {
@@ -282,7 +332,6 @@ int main()
             }
         }
         prevCommandExec = time;
-
         if (TWI::isDataRequested())
         {
             printf("requested\n");
@@ -295,5 +344,131 @@ int main()
         }
 
         pidWait();
+
+        float leftSpeed = currentLeftPower * leftVelocity;
+        float rightSpeed = currentRightPower * rightVelocity;
+        uint16_t leftPWM = (uint16_t)floor(fmin(1.0f, fabs(leftSpeed)) * (float)UINT16_MAX);
+        uint16_t rightPWM = (uint16_t)floor(fmin(1.0f, fabs(leftSpeed)) * (float)UINT16_MAX);
+
+        motor0.setPWM(leftPWM);
+        motor2.setPWM(leftPWM);
+        motor4.setPWM(leftPWM);
+
+        motor1.setPWM(rightPWM);
+        motor3.setPWM(rightPWM);
+        motor5.setPWM(rightPWM);
+
+        float timestamp = clock.micros() / 1000000.0f;
+        if (motor0.inPWMHigh(timestamp))
+        {
+            if (leftSpeed > 0)
+                motor0.clockwise();
+            else
+                motor0.counterclockwise();
+        }
+        else
+            motor0.stop();
+        if (motor1.inPWMHigh(timestamp))
+        {
+            if (rightSpeed > 0)
+                motor1.clockwise();
+            else
+                motor1.counterclockwise();
+        }
+        else
+            motor1.stop();
+        if (motor2.inPWMHigh(timestamp))
+        {
+            if (leftSpeed > 0)
+                motor2.clockwise();
+            else
+                motor2.counterclockwise();
+        }
+        else
+            motor2.stop();
+        if (motor3.inPWMHigh(timestamp))
+        {
+            if (rightSpeed > 0)
+                motor3.clockwise();
+            else
+                motor3.counterclockwise();
+        }
+        else
+            motor3.stop();
+        if (motor4.inPWMHigh(timestamp))
+        {
+            if (leftSpeed > 0)
+                motor4.clockwise();
+            else
+                motor4.counterclockwise();
+        }
+        else
+            motor4.stop();
+        if (motor5.inPWMHigh(timestamp))
+        {
+            if (rightSpeed > 0)
+                motor5.clockwise();
+            else
+                motor5.counterclockwise();
+        }
+        else
+            motor5.stop();
+
+        if (currentCommand.id == CMD_NONE && (time - currentCommand.startTime) > 4000000)
+        {
+            int t = rand() % 7; // stop,forward,backward,left,right
+            if (t == 0 || t == 5 || t == 6)
+            {
+                printf("forward\n");
+                int direction = DRIVETRAIN_DIRECTION_FORWARD;
+                command = {};
+                command.id = CMD_DRIVETRAIN_DRIVE;
+                command.startTime = clock.counter();
+                command.driveData.direction = (uint8_t)direction;
+                leftVelocity = 1.0f;
+                rightVelocity = 1.0f;
+            }
+            else if (t == 1)
+            {
+                printf("backward\n");
+                int direction = DRIVETRAIN_DIRECTION_BACKWARD;
+                command = {};
+                command.id = CMD_DRIVETRAIN_DRIVE;
+                command.startTime = clock.counter();
+                command.driveData.direction = (uint8_t)direction;
+                leftVelocity = 1.0f;
+                rightVelocity = 1.0f;
+            }
+            else if (t == 2)
+            {
+                printf("left\n");
+                int direction = DRIVETRAIN_DIRECTION_FORWARD;
+                command = {};
+                command.id = CMD_DRIVETRAIN_DRIVE;
+                command.startTime = clock.counter();
+                command.driveData.direction = (uint8_t)direction;
+                leftVelocity = -1.0f;
+                rightVelocity = 1.0f;
+            }
+            else if (t == 3)
+            {
+                printf("right\n");
+                int direction = DRIVETRAIN_DIRECTION_FORWARD;
+                command = {};
+                command.id = CMD_DRIVETRAIN_DRIVE;
+                command.startTime = clock.counter();
+                command.driveData.direction = (uint8_t)direction;
+                leftVelocity = 1.0f;
+                rightVelocity = -1.0f;
+            }
+            else if (t == 4)
+            {
+                printf("stop\n");
+                command = {};
+                command.id = CMD_DRIVETRAIN_STOP;
+                command.startTime = clock.counter();
+            }
+            currentCommand = command;
+        }
     }
 }

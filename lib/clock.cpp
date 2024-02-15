@@ -35,3 +35,8 @@ float Clock::micros()
 {
     return counter() / 2.0f;
 }
+
+float Clock::toMicros(unsigned long count)
+{
+    return count / 2.0f;
+}

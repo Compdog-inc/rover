@@ -74,7 +74,7 @@ void TWI::sendTo(uint8_t address)
     if (!sendStart())
         return;
     // send SLA+W
-    TWDR = address + TW_WRITE;
+    TWDR = (address << 1) + TW_WRITE;
     CLEAR_TWINT();
     WAIT_FOR_TWINT();
 
@@ -88,7 +88,7 @@ void TWI::requestFrom(uint8_t address)
     if (!sendStart())
         return;
     // send SLA+R
-    TWDR = address + TW_READ;
+    TWDR = (address << 1) + TW_READ;
     CLEAR_TWINT();
     WAIT_FOR_TWINT();
 
@@ -100,11 +100,13 @@ void TWI::requestFrom(uint8_t address)
 void TWI::endTransfer()
 {
     TWCR |= (1 << TWSTO);
+    CLEAR_TWINT();
 }
 
 void TWI::resetState()
 {
     TWCR |= (1 << TWSTO);
+    CLEAR_TWINT();
 }
 
 bool TWI::readAvailable()
@@ -132,6 +134,7 @@ int TWI::readByte()
     uint8_t status = TW_STATUS;
     uint8_t data = TWDR;
     CLEAR_TWINT();
+    return data;
     switch (status)
     {
     case TW_MR_DATA_ACK:
@@ -171,7 +174,7 @@ bool TWI::write(uint8_t *data, int count)
             status == TW_ST_ARB_LOST_SLA_ACK ||
             status == TW_ST_DATA_ACK ||
             status == TW_MT_DATA_ACK ||
-            status == TW_MT_SLA_ACK)
+            status == TW_MT_SLA_ACK || true)
         {
             TWDR = data[i];
             CLEAR_TWINT();
@@ -182,14 +185,13 @@ bool TWI::write(uint8_t *data, int count)
             return false;
         }
     }
-
+    WAIT_FOR_TWINT();
     return true;
 }
 
 ISR(TWI_vect)
 {
     uint8_t status = TW_STATUS;
-    printf("int: 0x%x\n", status);
     switch (status)
     {
     case TW_ST_LAST_DATA:
