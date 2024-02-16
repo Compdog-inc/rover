@@ -18,6 +18,7 @@ namespace USART
     /// @param count Number of bytes to write
     void write(uint8_t *data, int count);
 
+    /// @brief Creates a file stream and redirects stdout to the USART port (allows for printf)
     void redirectStdout();
 }
 
