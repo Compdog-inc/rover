@@ -8,7 +8,6 @@ Motor::Motor(uint8_t pin1, uint8_t pin2)
 {
     this->pin1 = pin1;
     this->pin2 = pin2;
-    this->pwmDuty = 0;
 
     io.set_dir(pin1, IODir::Out);
     io.set_dir(pin2, IODir::Out);
@@ -31,18 +30,4 @@ void Motor::stop()
 {
     io.put(pin1, BRAKE_MODE);
     io.put(pin2, BRAKE_MODE);
-}
-
-void Motor::setPWM(uint16_t duty)
-{
-    this->pwmDuty = duty;
-}
-
-bool Motor::inPWMHigh(float timestamp)
-{
-    float cycleTime = 1.0f / 50.0f; // 50Hz
-    float cycleCount = timestamp / cycleTime;
-    float cycleDelta = cycleCount - floor(cycleCount);
-    uint16_t cycleDeltaInt = floor(cycleDelta * UINT16_MAX);
-    return cycleDeltaInt < this->pwmDuty;
 }

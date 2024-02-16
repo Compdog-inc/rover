@@ -5,6 +5,8 @@
 #include <i2c.h>
 #include <usart.h>
 #include <motor.h>
+#include <PWMMotor.h>
+#include <pidcontroller.h>
 #include <status.h>
 
 typedef struct
@@ -42,10 +44,10 @@ typedef struct
     };
 } Command;
 
-float currentLeftPower = 0.0f;
-float currentRightPower = 0.0f;
+float targetLeftPower = 0.0f;
+float targetRightPower = 0.0f;
 float leftVelocity = 1.0f;
-float rightVelocity = -1.0f;
+float rightVelocity = 1.0f;
 float turnVelocity = 1.0f;
 float currentAngle = 0.0f;
 
@@ -54,28 +56,35 @@ Command currentCommand = {};
 
 Clock clock;
 
-Motor motor0 = {9, 8};
-Motor motor1 = {11, 10};
-Motor motor2 = {12, 13};
-Motor motor3 = {27, 26};
-Motor motor4 = {29, 28};
-Motor motor5 = {31, 30};
+Motor frontLeftMotor = {9, 8};
+Motor frontRightMotor = {11, 10};
+Motor centerLeftMotor = {12, 13};
+Motor centerRightMotor = {27, 26};
+Motor backLeftMotor = {29, 28};
+Motor backRightMotor = {31, 30};
 
-float pidPowerTarget(float current, float target, unsigned long delta)
-{
-    float deltaUs = clock.toMicros(delta);
-    float deltaS = deltaUs / 1000000.0f;
-    return current + fmin(1.0f, fmax(-1.0f, (target - current))) * deltaS * 4.0f;
-}
+PWMMotor frontLeftController = {50};
+PWMMotor frontRightController = {50};
+PWMMotor centerLeftController = {50};
+PWMMotor centerRightController = {50};
+PWMMotor backLeftController = {50};
+PWMMotor backRightController = {50};
 
-bool pidThreshold(float current, float target)
-{
-    return current >= target - 0.01f && current <= target + 0.01f;
-}
+PIDController frontLeftPID = {&clock, 4.0f, 0.01f};
+PIDController frontRightPID = {&clock, 4.0f, 0.01f};
+PIDController centerLeftPID = {&clock, 4.0f, 0.01f};
+PIDController centerRightPID = {&clock, 4.0f, 0.01f};
+PIDController backLeftPID = {&clock, 4.0f, 0.01f};
+PIDController backRightPID = {&clock, 4.0f, 0.01f};
 
-void pidWait()
+bool allWheelsAtTarget()
 {
-    _delay_us(1);
+    return frontLeftPID.atTarget(frontLeftController.getSpeed()) &&
+           frontRightPID.atTarget(frontRightController.getSpeed()) &&
+           centerLeftPID.atTarget(centerLeftController.getSpeed()) &&
+           centerRightPID.atTarget(centerRightController.getSpeed()) &&
+           backLeftPID.atTarget(backLeftController.getSpeed()) &&
+           backRightPID.atTarget(backRightController.getSpeed());
 }
 
 // Processes a command and return true if it is complete, false if it needs to be called again
@@ -88,41 +97,19 @@ bool processCommand(Command cmd, unsigned long delta)
         // Get target drivetrain power based off direction
         float targetPower = cmd.driveData.direction == DRIVETRAIN_DIRECTION_FORWARD ? 1.0f : -1.0f;
 
-        // Update current power values using pid
-        currentLeftPower = pidPowerTarget(currentLeftPower, targetPower, delta);
-        currentRightPower = pidPowerTarget(currentRightPower, targetPower, delta);
+        targetLeftPower = targetPower;
+        targetRightPower = targetPower;
 
-        // Check if current power values are near the target
-        bool leftThresh = pidThreshold(currentLeftPower, targetPower);
-        bool rightThresh = pidThreshold(currentRightPower, targetPower);
-
-        // Snap values to the target if they are near
-        if (leftThresh)
-            currentLeftPower = targetPower;
-        if (rightThresh)
-            currentRightPower = targetPower;
-
-        // Command is complete when both left and right power have reached the target
-        return leftThresh && rightThresh;
+        // Command is complete when all wheels have reached their target
+        return allWheelsAtTarget();
     }
     case CMD_DRIVETRAIN_STOP:
     {
-        // Update current power values using pid
-        currentLeftPower = pidPowerTarget(currentLeftPower, 0, delta);
-        currentRightPower = pidPowerTarget(currentRightPower, 0, delta);
+        targetLeftPower = 0;
+        targetRightPower = 0;
 
-        // Check if current power values are near the target
-        bool leftThresh = pidThreshold(currentLeftPower, 0);
-        bool rightThresh = pidThreshold(currentRightPower, 0);
-
-        // Set power to exactly 0 to avoid slow drifting
-        if (leftThresh)
-            currentLeftPower = 0;
-        if (rightThresh)
-            currentRightPower = 0;
-
-        // Command is complete when both left and right power have reached the target
-        return leftThresh && rightThresh;
+        // Command is complete when all wheels have reached their target
+        return allWheelsAtTarget();
     }
     case CMD_DRIVETRAIN_TURN:
     {
@@ -167,9 +154,9 @@ void requestData()
     uint8_t buf[4];
 
     // return the current left and right drivetrain power (current PWM value of motors)
-    encodeFloat(buf, currentLeftPower);
+    encodeFloat(buf, 0);
     OK(TWI::write(buf, 4));
-    encodeFloat(buf, currentRightPower);
+    encodeFloat(buf, 0);
     OK(TWI::write(buf, 4));
 
     // return the current command id
@@ -343,76 +330,34 @@ int main()
             receiveData();
         }
 
-        pidWait();
+        _delay_us(1);
 
-        float leftSpeed = currentLeftPower * leftVelocity;
-        float rightSpeed = currentRightPower * rightVelocity;
-        uint16_t leftPWM = (uint16_t)floor(fmin(1.0f, fabs(leftSpeed)) * (float)UINT16_MAX);
-        uint16_t rightPWM = (uint16_t)floor(fmin(1.0f, fabs(leftSpeed)) * (float)UINT16_MAX);
+        float leftSpeed = targetLeftPower * leftVelocity;
+        float rightSpeed = targetRightPower * rightVelocity;
 
-        motor0.setPWM(leftPWM);
-        motor2.setPWM(leftPWM);
-        motor4.setPWM(leftPWM);
+        frontLeftPID.setTarget(leftSpeed);
+        centerLeftPID.setTarget(leftSpeed);
+        backLeftPID.setTarget(leftSpeed);
 
-        motor1.setPWM(rightPWM);
-        motor3.setPWM(rightPWM);
-        motor5.setPWM(rightPWM);
+        frontRightPID.setTarget(rightSpeed);
+        centerRightPID.setTarget(rightSpeed);
+        backRightPID.setTarget(rightSpeed);
 
-        float timestamp = clock.micros() / 1000000.0f;
-        if (motor0.inPWMHigh(timestamp))
-        {
-            if (leftSpeed > 0)
-                motor0.clockwise();
-            else
-                motor0.counterclockwise();
-        }
-        else
-            motor0.stop();
-        if (motor1.inPWMHigh(timestamp))
-        {
-            if (rightSpeed > 0)
-                motor1.clockwise();
-            else
-                motor1.counterclockwise();
-        }
-        else
-            motor1.stop();
-        if (motor2.inPWMHigh(timestamp))
-        {
-            if (leftSpeed > 0)
-                motor2.clockwise();
-            else
-                motor2.counterclockwise();
-        }
-        else
-            motor2.stop();
-        if (motor3.inPWMHigh(timestamp))
-        {
-            if (rightSpeed > 0)
-                motor3.clockwise();
-            else
-                motor3.counterclockwise();
-        }
-        else
-            motor3.stop();
-        if (motor4.inPWMHigh(timestamp))
-        {
-            if (leftSpeed > 0)
-                motor4.clockwise();
-            else
-                motor4.counterclockwise();
-        }
-        else
-            motor4.stop();
-        if (motor5.inPWMHigh(timestamp))
-        {
-            if (rightSpeed > 0)
-                motor5.clockwise();
-            else
-                motor5.counterclockwise();
-        }
-        else
-            motor5.stop();
+        frontLeftController.set(frontLeftPID.calculate(frontLeftController.getSpeed()));
+        frontRightController.set(frontRightPID.calculate(frontRightController.getSpeed()));
+        centerLeftController.set(centerLeftPID.calculate(centerLeftController.getSpeed()));
+        centerRightController.set(centerRightPID.calculate(centerRightController.getSpeed()));
+        backLeftController.set(backLeftPID.calculate(backLeftController.getSpeed()));
+        backRightController.set(backRightPID.calculate(backRightController.getSpeed()));
+
+        float timestamp = clock.seconds();
+
+        frontLeftController.update(frontLeftMotor, timestamp);
+        frontRightController.update(frontRightMotor, timestamp);
+        centerLeftController.update(centerLeftMotor, timestamp);
+        centerRightController.update(centerRightMotor, timestamp);
+        backLeftController.update(backLeftMotor, timestamp);
+        backRightController.update(backRightMotor, timestamp);
 
         if (currentCommand.id == CMD_NONE && (time - currentCommand.startTime) > 4000000)
         {

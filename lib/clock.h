@@ -7,6 +7,8 @@ typedef struct
     unsigned long counter();
     float micros();
     float toMicros(unsigned long count);
+    float seconds();
+    float toSeconds(unsigned long count);
 } Clock;
 
 #endif
