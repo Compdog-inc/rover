@@ -8,41 +8,7 @@
 #include <PWMMotor.h>
 #include <pidcontroller.h>
 #include <status.h>
-
-typedef struct
-{
-    uint8_t direction;
-} DriveCommandData;
-
-typedef struct
-{
-    float angle;
-} TurnCommandData;
-
-typedef struct
-{
-    float leftVelocity;
-    float rightVelocity;
-} SetVelocityCommandData;
-
-typedef struct
-{
-    float distance;
-} MoveCommandData;
-
-typedef struct
-{
-    uint8_t id;
-    unsigned long startTime;
-
-    union
-    {
-        DriveCommandData driveData;
-        TurnCommandData turnData;
-        SetVelocityCommandData setVelocityData;
-        MoveCommandData moveData;
-    };
-} Command;
+#include "commands.h"
 
 float targetLeftPower = 0.0f;
 float targetRightPower = 0.0f;
@@ -262,45 +228,7 @@ int main()
     // TWI::setAddressMask(0x00);
     TWI::setSlave();
 
-    currentCommand.id = CMD_NONE;
-
     unsigned long prevCommandExec = 0;
-
-    printf("poweron reset ");
-    if (poweron_reset())
-    {
-        printf("yes\n");
-    }
-    else
-    {
-        printf("no\n");
-    }
-
-    printf("external reset ");
-    if (external_reset())
-    {
-        printf("yes\n");
-    }
-    else
-    {
-        printf("no\n");
-    }
-
-    printf("brownout reset ");
-    if (brownout_reset())
-    {
-        printf("yes\n");
-    }
-    else
-    {
-        printf("no\n");
-    }
-
-    if (brownout_reset() || watchdog_reset() || external_reset() || poweron_reset())
-    {
-        while (1)
-            ;
-    }
 
     while (1)
     {
