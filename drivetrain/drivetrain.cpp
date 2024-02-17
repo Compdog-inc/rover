@@ -146,7 +146,7 @@ void requestData()
 void receiveData()
 {
     int id = TWI::readByte();
-    printf("Byte: %i\n", id);
+    printf("Byte: %i\r\n", id);
     switch (id)
     {
     case CMD_DRIVETRAIN_DRIVE:
@@ -218,7 +218,7 @@ int main()
     USART::setBaudRate(115200);
     USART::redirectStdout();
 
-    printf("init\n");
+    printf("init\r\n");
 
     clock.init();
     TWI::enable();
@@ -249,12 +249,12 @@ int main()
         prevCommandExec = time;
         if (TWI::isDataRequested())
         {
-            printf("requested\n");
+            printf("requested\r\n");
             requestData();
         }
         else if (TWI::readAvailable())
         {
-            printf("reading\n");
+            printf("reading\r\n");
             receiveData();
         }
 
@@ -292,7 +292,7 @@ int main()
             int t = rand() % 7; // stop,forward,backward,left,right
             if (t == 0 || t == 5 || t == 6)
             {
-                printf("forward\n");
+                printf("forward\r\n");
                 int direction = DRIVETRAIN_DIRECTION_FORWARD;
                 command = {};
                 command.id = CMD_DRIVETRAIN_DRIVE;
@@ -303,7 +303,7 @@ int main()
             }
             else if (t == 1)
             {
-                printf("backward\n");
+                printf("backward\r\n");
                 int direction = DRIVETRAIN_DIRECTION_BACKWARD;
                 command = {};
                 command.id = CMD_DRIVETRAIN_DRIVE;
@@ -314,7 +314,7 @@ int main()
             }
             else if (t == 2)
             {
-                printf("left\n");
+                printf("left\r\n");
                 int direction = DRIVETRAIN_DIRECTION_FORWARD;
                 command = {};
                 command.id = CMD_DRIVETRAIN_DRIVE;
@@ -325,7 +325,7 @@ int main()
             }
             else if (t == 3)
             {
-                printf("right\n");
+                printf("right\r\n");
                 int direction = DRIVETRAIN_DIRECTION_FORWARD;
                 command = {};
                 command.id = CMD_DRIVETRAIN_DRIVE;
@@ -336,7 +336,7 @@ int main()
             }
             else if (t == 4)
             {
-                printf("stop\n");
+                printf("stop\r\n");
                 command = {};
                 command.id = CMD_DRIVETRAIN_STOP;
                 command.startTime = clock.counter();
