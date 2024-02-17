@@ -3,6 +3,9 @@
 #include <ioutils.h>
 #include <clock.h>
 #include <i2c.h>
+#include <serialdebug.h>
+
+DebugInterface debug;
 
 IOPort io = io_port_default;
 
@@ -12,6 +15,10 @@ Clock clock;
 
 int main()
 {
+    debug = DebugInterface("Environment", CURRENT_VERSION);
+    debug.printHeader();
+    sei();
+
     clock.init();
     TWI::enable();
     TWI::connect();
