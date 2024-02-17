@@ -6,9 +6,9 @@
 
 Version::Version(uint32_t version)
 {
-    major = (uint8_t)((version << 24) & 0xFF);
-    minor = (uint8_t)((version << 16) & 0xFF);
-    patch = (uint8_t)((version << 8) & 0xFF);
+    major = (uint8_t)((version >> 24) & 0xFF);
+    minor = (uint8_t)((version >> 16) & 0xFF);
+    patch = (uint8_t)((version >> 8) & 0xFF);
     build = (uint8_t)(version & 0xFF);
 }
 

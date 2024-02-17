@@ -17,13 +17,13 @@ int main()
 {
     debug = DebugInterface("Environment", CURRENT_VERSION);
     debug.printHeader();
-    sei();
 
     clock.init();
     TWI::enable();
     TWI::connect();
     TWI::disableGeneralCall();
     TWI::setAddress(ENVIRONMENT_I2C);
+    TWI::setAddressMask(0xFF);
     TWI::setSlave();
 
     io.reset();

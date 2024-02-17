@@ -160,6 +160,7 @@ void receiveData()
     case CMD_DRIVETRAIN_DRIVE:
     {
         int direction = TWI::readByte();
+        debug.info("Dir: %i\r\n", direction);
         command = {};
         command.id = CMD_DRIVETRAIN_DRIVE;
         command.startTime = clock.counter();
@@ -230,7 +231,7 @@ int main()
     TWI::connect();
     TWI::disableGeneralCall();
     TWI::setAddress(DRIVETRAIN_I2C);
-    // TWI::setAddressMask(0x00);
+    TWI::setAddressMask(0xFF);
     TWI::setSlave();
 
     unsigned long prevCommandExec = 0;

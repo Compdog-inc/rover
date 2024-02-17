@@ -1,6 +1,7 @@
 #include "framework.h"
 #include "i2c.h"
 #include <util/twi.h>
+#include "serialdebug.h"
 
 #define WAIT_FOR_TWINT()           \
     while (!(TWCR & (1 << TWINT))) \
@@ -75,6 +76,7 @@ void TWI::sendTo(uint8_t address)
         return;
     // send SLA+W
     TWDR = (address << 1) + TW_WRITE;
+    TWCR &= ~(1 << TWSTA);
     CLEAR_TWINT();
     WAIT_FOR_TWINT();
 
@@ -111,7 +113,12 @@ void TWI::resetState()
 
 bool TWI::readAvailable()
 {
-    return (TWCR & (1 << TWINT));
+    bool available = (TWCR & (1 << TWINT));
+    if (available)
+    {
+        CLEAR_TWINT();
+    }
+    return available;
 }
 
 bool TWI::isDataRequested()
@@ -122,8 +129,11 @@ bool TWI::isDataRequested()
     if (TW_STATUS != TW_ST_SLA_ACK)
     {
         CLEAR_TWINT();
+        WAIT_FOR_TWINT();
         return false;
     }
+
+    CLEAR_TWINT();
 
     return true;
 }
@@ -134,7 +144,9 @@ int TWI::readByte()
     uint8_t status = TW_STATUS;
     uint8_t data = TWDR;
     CLEAR_TWINT();
+
     return data;
+
     switch (status)
     {
     case TW_MR_DATA_ACK:
@@ -168,7 +180,6 @@ bool TWI::write(uint8_t *data, int count)
 {
     for (int i = 0; i < count; i++)
     {
-        WAIT_FOR_TWINT();
         uint8_t status = TW_STATUS;
         if (status == TW_ST_SLA_ACK ||
             status == TW_ST_ARB_LOST_SLA_ACK ||
@@ -178,20 +189,23 @@ bool TWI::write(uint8_t *data, int count)
         {
             TWDR = data[i];
             CLEAR_TWINT();
+            WAIT_FOR_TWINT();
         }
         else
         {
-            CLEAR_TWINT();
+            // CLEAR_TWINT();
             return false;
         }
     }
-    WAIT_FOR_TWINT();
     return true;
 }
+
+DebugInterface dbg("I2C", Version(256));
 
 ISR(TWI_vect)
 {
     uint8_t status = TW_STATUS;
+    // dbg.info("%u\r\n", status);
     switch (status)
     {
     case TW_ST_LAST_DATA:
