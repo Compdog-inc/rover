@@ -8,7 +8,10 @@
 #include <PWMMotor.h>
 #include <pidcontroller.h>
 #include <status.h>
+#include <serialdebug.h>
 #include "commands.h"
+
+DebugInterface debug;
 
 float targetLeftPower = 0.0f;
 float targetRightPower = 0.0f;
@@ -146,7 +149,7 @@ void requestData()
 void receiveData()
 {
     int id = TWI::readByte();
-    printf("Byte: %i\r\n", id);
+    debug.info("Byte: %i\r\n", id);
     switch (id)
     {
     case CMD_DRIVETRAIN_DRIVE:
@@ -214,11 +217,8 @@ void receiveData()
 
 int main()
 {
-    USART::enable();
-    USART::setBaudRate(115200);
-    USART::redirectStdout();
-
-    printf("init\r\n");
+    debug = DebugInterface("Drivetrain", CURRENT_VERSION);
+    debug.printHeader();
 
     clock.init();
     TWI::enable();
@@ -249,12 +249,12 @@ int main()
         prevCommandExec = time;
         if (TWI::isDataRequested())
         {
-            printf("requested\r\n");
+            debug.info("requested\r\n");
             requestData();
         }
         else if (TWI::readAvailable())
         {
-            printf("reading\r\n");
+            debug.info("reading\r\n");
             receiveData();
         }
 
@@ -292,7 +292,7 @@ int main()
             int t = rand() % 7; // stop,forward,backward,left,right
             if (t == 0 || t == 5 || t == 6)
             {
-                printf("forward\r\n");
+                debug.info("forward\r\n");
                 int direction = DRIVETRAIN_DIRECTION_FORWARD;
                 command = {};
                 command.id = CMD_DRIVETRAIN_DRIVE;
@@ -303,7 +303,7 @@ int main()
             }
             else if (t == 1)
             {
-                printf("backward\r\n");
+                debug.info("backward\r\n");
                 int direction = DRIVETRAIN_DIRECTION_BACKWARD;
                 command = {};
                 command.id = CMD_DRIVETRAIN_DRIVE;
@@ -314,7 +314,7 @@ int main()
             }
             else if (t == 2)
             {
-                printf("left\r\n");
+                debug.info("left\r\n");
                 int direction = DRIVETRAIN_DIRECTION_FORWARD;
                 command = {};
                 command.id = CMD_DRIVETRAIN_DRIVE;
@@ -325,7 +325,7 @@ int main()
             }
             else if (t == 3)
             {
-                printf("right\r\n");
+                debug.info("right\r\n");
                 int direction = DRIVETRAIN_DIRECTION_FORWARD;
                 command = {};
                 command.id = CMD_DRIVETRAIN_DRIVE;
@@ -336,7 +336,7 @@ int main()
             }
             else if (t == 4)
             {
-                printf("stop\r\n");
+                debug.info("stop\r\n");
                 command = {};
                 command.id = CMD_DRIVETRAIN_STOP;
                 command.startTime = clock.counter();

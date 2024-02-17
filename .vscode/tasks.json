@@ -1,0 +1,42 @@
+{
+    "version": "2.0.0",
+    "presentation": {
+        "echo": false,
+        "reveal": "always",
+        "focus": true,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false
+    },
+    "tasks": [
+        {
+            "label": "Program AVR",
+            "command": "${command:AVR.command.build+flash}",
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "dependsOn": [
+                "Autogen headers"
+            ]
+        },
+        {
+            "label": "Autogen headers",
+            "command": "python",
+            "args": [
+                "autogen.py"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}/../"
+            },
+            "problemMatcher": {
+                "owner": "python",
+                "fileLocation": [
+                    "relative",
+                    "${workspaceFolder}"
+                ],
+                "pattern": {
+                    "regexp": "^(.*):(\\d+):(\\d+):\\s+(W|E).+:\\s+(.*)$",
+                    "file": 1,
+                    "line": 2,
+                    "column": 3,
+                    "severity": 4,

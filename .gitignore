@@ -1,3 +1,6 @@
 build
 build/
 */.vscode/
+
+include/*.h
+!include/*.gen.h
