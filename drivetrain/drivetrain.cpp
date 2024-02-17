@@ -39,12 +39,17 @@ PWMMotor centerRightController = {50};
 PWMMotor backLeftController = {50};
 PWMMotor backRightController = {50};
 
-PIDController frontLeftPID = {&clock, 4.0f, 0.01f};
-PIDController frontRightPID = {&clock, 4.0f, 0.01f};
-PIDController centerLeftPID = {&clock, 4.0f, 0.01f};
-PIDController centerRightPID = {&clock, 4.0f, 0.01f};
-PIDController backLeftPID = {&clock, 4.0f, 0.01f};
-PIDController backRightPID = {&clock, 4.0f, 0.01f};
+#define WHEEL_PID           \
+    {                       \
+        &clock, 8.0f, 0.01f \
+    }
+
+PIDController frontLeftPID = WHEEL_PID;
+PIDController frontRightPID = WHEEL_PID;
+PIDController centerLeftPID = WHEEL_PID;
+PIDController centerRightPID = WHEEL_PID;
+PIDController backLeftPID = WHEEL_PID;
+PIDController backRightPID = WHEEL_PID;
 
 bool allWheelsAtTarget()
 {
@@ -287,7 +292,7 @@ int main()
         backLeftController.update(backLeftMotor, timestamp);
         backRightController.update(backRightMotor, timestamp);
 
-        if (currentCommand.id == CMD_NONE && (time - currentCommand.startTime) > 4000000)
+        /*if (currentCommand.id == CMD_NONE && (time - currentCommand.startTime) > 4000000)
         {
             int t = rand() % 7; // stop,forward,backward,left,right
             if (t == 0 || t == 5 || t == 6)
@@ -342,6 +347,6 @@ int main()
                 command.startTime = clock.counter();
             }
             currentCommand = command;
-        }
+        }*/
     }
 }
