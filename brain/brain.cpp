@@ -2,6 +2,9 @@
 #include <drivetrain.h>
 #include <ioutils.h>
 #include <usart.h>
+#include <serialdebug.h>
+
+DebugInterface debug;
 
 Drivetrain drivetrain;
 IOPort io = io_port_default;
@@ -10,13 +13,11 @@ IOPort io = io_port_default;
 
 int main()
 {
-    drivetrain.enable();
-    USART::enable();
-    USART::setBaudRate(115200);
-    USART::redirectStdout();
-    sei();
+    debug = DebugInterface("Brain", CURRENT_VERSION);
+    debug.printHeader();
 
-    printf("USART test!\n");
+    drivetrain.enable();
+    sei();
 
     io.reset();
     io.set_dir(LED_PIN, IODir::Out);
@@ -27,10 +28,10 @@ int main()
     while (1)
     {
         // Drivetrain test
-        printf("requesting update\n");
+        debug.info("requesting update\r\n");
         drivetrain.requestUpdate();
         float power = drivetrain.getLeftPower();
-        printf("Left power: %f\n", power);
+        debug.info("Left power: %f\r\n", power);
         drivetrain.drive(Direction::Forward);
         drivetrain.requestUpdate();
         float powerD = drivetrain.getLeftPower();
