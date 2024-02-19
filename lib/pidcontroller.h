@@ -3,7 +3,7 @@
 
 #include "framework.h"
 #include "PWMMotor.h"
-#include "clock.h"
+#include "timer.h"
 
 typedef struct PIDController
 {
@@ -26,12 +26,10 @@ public:
     bool atTarget(float current);
 
 private:
-    Clock *clock;
+    Timer timer;
     float target;
     float P;
     float threshold;
-
-    unsigned long prevCount;
 } PIDController;
 
 #endif

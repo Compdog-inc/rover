@@ -254,13 +254,23 @@ int main()
         }
         prevCommandExec = time;
 
-        // // this only works because isDataRequested clears the TWINT flag when false
         if (TWI::isDataRequested())
         {
             debug.info("requested\r\n");
-            requestData();
+            // requestData();
+            uint8_t bt = 0;
+            Time interval = Time::fromSeconds(1);
+            Timer timer(&clock);
+            while (1)
+            {
+                if (timer.elapsed(interval))
+                {
+                    timer.reset();
+                    TWI::write(&bt, 1);
+                    bt++;
+                }
+            }
         }
-        // if readAvailable returns true, the START event is already consumed by the isDataRequested check
         else if (TWI::readAvailable())
         {
             debug.info("reading\r\n");

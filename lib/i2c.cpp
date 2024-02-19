@@ -193,11 +193,12 @@ bool TWI::write(uint8_t *data, int count)
     for (int i = 0; i < count; i++)
     {
         uint8_t status = TW_STATUS;
+        dbg.info("write status '%s'\n", nameOfStatus(status));
         if (status == TW_ST_SLA_ACK ||
             status == TW_ST_ARB_LOST_SLA_ACK ||
             status == TW_ST_DATA_ACK ||
             status == TW_MT_DATA_ACK ||
-            status == TW_MT_SLA_ACK || true)
+            status == TW_MT_SLA_ACK)
         {
             dbg.info("sending %u\n", data[i]);
             TWDR = data[i];

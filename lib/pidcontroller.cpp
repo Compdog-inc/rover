@@ -2,12 +2,11 @@
 #include "pidcontroller.h"
 
 PIDController::PIDController(Clock *clock, float P, float threshold)
+    : timer(clock)
 {
     this->target = 0.0f;
     this->P = P;
     this->threshold = threshold;
-    this->clock = clock;
-    this->prevCount = clock->counter();
 }
 
 void PIDController::setTarget(float value)
@@ -22,12 +21,12 @@ bool PIDController::atTarget(float current)
 
 float PIDController::calculate(float current)
 {
-    unsigned long count = clock->counter();
-    float delta = clock->toSeconds(count - prevCount);
-    prevCount = count;
+    // Get elapsed time since last calculate
+    Time delta = timer.elapsed();
+    timer.reset();
 
     // calculate pid output
-    float output = current + fmin(1.0f, fmax(-1.0f, (target - current))) * delta * P;
+    float output = current + fmin(1.0f, fmax(-1.0f, (target - current))) * delta.asSeconds() * P;
 
     // threshold output
     if (output >= target - threshold && output <= target + threshold)
