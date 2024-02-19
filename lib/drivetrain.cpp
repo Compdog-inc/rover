@@ -3,6 +3,8 @@
 #include "i2c.h"
 #include "constants.h"
 #include "serialdebug.h"
+#include "timer.h"
+#include "serialize.h"
 
 DebugInterface dbgdrive("Drivetrain", Version(256));
 
@@ -31,58 +33,56 @@ void Drivetrain::drive(Direction direction)
     TWI::endTransfer();
 }
 
-void encodeFloat(uint8_t *buf, float f)
+void Drivetrain::stop()
 {
-    buf[0] = (uint32_t)f & 0xFF;
-    buf[1] = ((uint32_t)f >> 8) & 0xFF;
-    buf[2] = ((uint32_t)f >> 16) & 0xFF;
-    buf[3] = ((uint32_t)f >> 24) & 0xFF;
-}
+    uint8_t cmd[1];
+    cmd[0] = CMD_DRIVETRAIN_STOP; // id
 
-float decodeFloat(uint8_t *buf)
-{
-    return (float)(((uint32_t)buf[0]) & ((uint32_t)buf[1] << 8) & ((uint32_t)buf[2] << 16) & ((uint32_t)buf[3] << 24));
+    TWI::sendTo(DRIVETRAIN_I2C);
+    TWI::write(cmd, 1);
+    TWI::endTransfer();
 }
 
 void Drivetrain::requestUpdate()
 {
     uint8_t buf[4];
 
-    TWI::requestFrom(DRIVETRAIN_I2C);
-    // TWI::__internal_clearWait();
-    while (1)
-    {
-        int bt = TWI::readByte();
-        dbgdrive.info("data %i\n", bt);
-    }
+    if (!TWI::requestFrom(DRIVETRAIN_I2C))
+        return;
 
-    // read the current left and right drivetrain power (current PWM value of motors)
+    // read the current motor speeds
     if (TWI::read(buf, 4) != 4)
         return;
-    currentLeftPower = decodeFloat(buf);
-
+    dbgdrive.array(buf, 4);
+    frontLeftSpeed = decodeFloat(buf);
     if (TWI::read(buf, 4) != 4)
         return;
-    currentRightPower = decodeFloat(buf);
+    frontRightSpeed = decodeFloat(buf);
+    if (TWI::read(buf, 4) != 4)
+        return;
+    centerLeftSpeed = decodeFloat(buf);
+    if (TWI::read(buf, 4) != 4)
+        return;
+    centerRightSpeed = decodeFloat(buf);
+    if (TWI::read(buf, 4) != 4)
+        return;
+    backLeftSpeed = decodeFloat(buf);
+    if (TWI::read(buf, 4) != 4)
+        return;
+    backRightSpeed = decodeFloat(buf);
 
     // read the current command id
     if (TWI::read(buf, 1) != 1)
         return;
     currentCommandId = buf[0];
 
-    // read the left and right drivetrain velocity (set by master)
+    // read the left and right drivetrain power
     if (TWI::read(buf, 4) != 4)
         return;
-    leftVelocity = decodeFloat(buf);
-
+    currentLeftPower = decodeFloat(buf);
     if (TWI::read(buf, 4) != 4)
         return;
-    rightVelocity = decodeFloat(buf);
-
-    // read the turn velocity (set by master)
-    if (TWI::read(buf, 4) != 4)
-        return;
-    turnVelocity = decodeFloat(buf);
+    currentRightPower = decodeFloat(buf);
 
     // read the current angle
     if (TWI::read(buf, 4) != 4)
@@ -90,6 +90,34 @@ void Drivetrain::requestUpdate()
     currentAngle = decodeFloat(buf);
 
     TWI::endTransfer();
+}
+
+void Drivetrain::logTelemetry()
+{
+    char buf[20];
+
+    ftoa(currentLeftPower, buf, 20, 4);
+    dbgdrive.info("leftPower: %s\n", buf);
+    ftoa(currentRightPower, buf, 20, 4);
+    dbgdrive.info("rightPower: %s\n", buf);
+
+    dbgdrive.info("currentCommand: %u\n", currentCommandId);
+
+    ftoa(currentAngle, buf, 20, 4);
+    dbgdrive.info("angle: %s\n", buf);
+
+    ftoa(frontLeftSpeed, buf, 20, 4);
+    dbgdrive.info("frontLeftSpeed: %s\n", buf);
+    ftoa(frontRightSpeed, buf, 20, 4);
+    dbgdrive.info("frontRightSpeed: %s\n", buf);
+    ftoa(centerLeftSpeed, buf, 20, 4);
+    dbgdrive.info("centerLeftSpeed: %s\n", buf);
+    ftoa(centerRightSpeed, buf, 20, 4);
+    dbgdrive.info("centerRightSpeed: %s\n", buf);
+    ftoa(backLeftSpeed, buf, 20, 4);
+    dbgdrive.info("backLeftSpeed: %s\n", buf);
+    ftoa(backRightSpeed, buf, 20, 4);
+    dbgdrive.info("backRightSpeed: %s\n", buf);
 }
 
 float Drivetrain::getLeftPower()

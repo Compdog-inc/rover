@@ -28,12 +28,15 @@ namespace TWI
     void setSlave();
 
     /// @brief Sends SLA+W request as master to the specified address
-    void sendTo(uint8_t address);
+    bool sendTo(uint8_t address);
     /// @brief Sends SLA+R request as master to the specified address
-    void requestFrom(uint8_t address);
+    bool requestFrom(uint8_t address);
     /// @brief Ends current transfer of data in master mode (SLA+R/SLA+W)
     void endTransfer();
-    uint8_t __internal_clearWait();
+
+    /// @brief Waits for next status update
+    /// @return The new status
+    uint8_t nextStatus();
 
     /// @brief Resets slave state to unaddressed
     void resetState();
@@ -56,6 +59,13 @@ namespace TWI
     /// @param count Number of bytes to write
     /// @return True if successfull
     bool write(uint8_t *data, int count);
+
+    /// @brief Wrties bytes from a buffer as a slave
+    /// @param data Input buffer
+    /// @param count Number of bytes to write
+    /// @param last Should transmit LAST_DATA status on last byte
+    /// @return True if successfull
+    bool write(uint8_t *data, int count, bool last);
 
     const char *nameOfStatus(uint8_t status);
 }

@@ -10,6 +10,7 @@
 #include <status.h>
 #include <serialdebug.h>
 #include "commands.h"
+#include <serialize.h>
 
 DebugInterface debug;
 
@@ -51,6 +52,20 @@ PIDController centerRightPID = WHEEL_PID;
 PIDController backLeftPID = WHEEL_PID;
 PIDController backRightPID = WHEEL_PID;
 
+void setPIDTargets()
+{
+    float leftSpeed = targetLeftPower * leftVelocity;
+    float rightSpeed = targetRightPower * rightVelocity;
+
+    frontLeftPID.setTarget(leftSpeed);
+    centerLeftPID.setTarget(leftSpeed);
+    backLeftPID.setTarget(leftSpeed);
+
+    frontRightPID.setTarget(rightSpeed);
+    centerRightPID.setTarget(rightSpeed);
+    backRightPID.setTarget(rightSpeed);
+}
+
 bool allWheelsAtTarget()
 {
     return frontLeftPID.atTarget(frontLeftController.getSpeed()) &&
@@ -73,6 +88,7 @@ bool processCommand(Command cmd, unsigned long delta)
 
         targetLeftPower = targetPower;
         targetRightPower = targetPower;
+        setPIDTargets();
 
         // Command is complete when all wheels have reached their target
         return allWheelsAtTarget();
@@ -81,6 +97,7 @@ bool processCommand(Command cmd, unsigned long delta)
     {
         targetLeftPower = 0;
         targetRightPower = 0;
+        setPIDTargets();
 
         // Command is complete when all wheels have reached their target
         return allWheelsAtTarget();
@@ -94,7 +111,8 @@ bool processCommand(Command cmd, unsigned long delta)
     {
         leftVelocity = cmd.setVelocityData.leftVelocity;
         rightVelocity = cmd.setVelocityData.rightVelocity;
-        return true;
+        setPIDTargets();
+        return allWheelsAtTarget();
     }
     case CMD_DRIVETRAIN_MOVE:
     {
@@ -106,19 +124,6 @@ bool processCommand(Command cmd, unsigned long delta)
     return true;
 }
 
-void encodeFloat(uint8_t *buf, float f)
-{
-    buf[0] = (uint32_t)f & 0xFF;
-    buf[1] = ((uint32_t)f >> 8) & 0xFF;
-    buf[2] = ((uint32_t)f >> 16) & 0xFF;
-    buf[3] = ((uint32_t)f >> 24) & 0xFF;
-}
-
-float decodeFloat(uint8_t *buf)
-{
-    return (float)(((uint32_t)buf[0]) & ((uint32_t)buf[1] << 8) & ((uint32_t)buf[2] << 16) & ((uint32_t)buf[3] << 24));
-}
-
 #define OK(val) \
     if (!val)   \
         return;
@@ -127,28 +132,37 @@ void requestData()
 {
     uint8_t buf[4];
 
-    // return the current left and right drivetrain power (current PWM value of motors)
-    encodeFloat(buf, 0);
+    // return the current motor speeds
+    char buf2[20];
+    ftoa(frontLeftController.getSpeed(), buf2, 20, 4);
+    debug.info("l: %s\n", buf2);
+
+    encodeFloat(buf, frontLeftController.getSpeed());
+    debug.array(buf, 4);
     OK(TWI::write(buf, 4));
-    encodeFloat(buf, 0);
+    encodeFloat(buf, frontRightController.getSpeed());
+    OK(TWI::write(buf, 4));
+    encodeFloat(buf, centerLeftController.getSpeed());
+    OK(TWI::write(buf, 4));
+    encodeFloat(buf, centerRightController.getSpeed());
+    OK(TWI::write(buf, 4));
+    encodeFloat(buf, backLeftController.getSpeed());
+    OK(TWI::write(buf, 4));
+    encodeFloat(buf, backRightController.getSpeed());
     OK(TWI::write(buf, 4));
 
     // return the current command id
     OK(TWI::write(&currentCommand.id, 1));
 
-    // return the left and right drivetrain velocity (set by master)
-    encodeFloat(buf, leftVelocity);
+    // return the left and right drivetrain power
+    encodeFloat(buf, targetLeftPower);
     OK(TWI::write(buf, 4));
-    encodeFloat(buf, rightVelocity);
-    OK(TWI::write(buf, 4));
-
-    // return the turn velocity (set by master)
-    encodeFloat(buf, turnVelocity);
+    encodeFloat(buf, targetRightPower);
     OK(TWI::write(buf, 4));
 
     // return the current angle
     encodeFloat(buf, currentAngle);
-    OK(TWI::write(buf, 4));
+    OK(TWI::write(buf, 4, true));
 }
 
 void receiveData()
@@ -245,6 +259,7 @@ int main()
             // Check if it has new command queued and set that as current command
             if (command.startTime != currentCommand.startTime)
             {
+                debug.info("Command finished [%u/%lu] -> [%u/%lu]\n", currentCommand.id, currentCommand.startTime, command.id, command.startTime);
                 currentCommand = command;
             }
             else // Else set current command to None
@@ -257,40 +272,19 @@ int main()
         if (TWI::isDataRequested())
         {
             debug.info("requested\r\n");
-            // requestData();
-            uint8_t bt = 0;
-            Time interval = Time::fromSeconds(1);
-            Timer timer(&clock);
-            while (1)
-            {
-                if (timer.elapsed(interval))
-                {
-                    timer.reset();
-                    TWI::write(&bt, 1);
-                    bt++;
-                }
-            }
+            requestData();
         }
         else if (TWI::readAvailable())
         {
             debug.info("reading\r\n");
             receiveData();
-            uint8_t status = TWI::__internal_clearWait();
+            uint8_t status = TWI::nextStatus();
             debug.info("after read '%s'\n", TWI::nameOfStatus(status));
         }
 
         _delay_us(1);
 
-        float leftSpeed = targetLeftPower * leftVelocity;
-        float rightSpeed = targetRightPower * rightVelocity;
-
-        frontLeftPID.setTarget(leftSpeed);
-        centerLeftPID.setTarget(leftSpeed);
-        backLeftPID.setTarget(leftSpeed);
-
-        frontRightPID.setTarget(rightSpeed);
-        centerRightPID.setTarget(rightSpeed);
-        backRightPID.setTarget(rightSpeed);
+        setPIDTargets();
 
         frontLeftController.set(frontLeftPID.calculate(frontLeftController.getSpeed()));
         frontRightController.set(frontRightPID.calculate(frontRightController.getSpeed()));

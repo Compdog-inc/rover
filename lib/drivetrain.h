@@ -13,8 +13,10 @@ typedef struct
     void disable();
     void setVelocity(float left, float right);
     void drive(Direction direction);
+    void stop();
 
     void requestUpdate();
+    void logTelemetry();
 
     float getLeftPower();
     float getRightPower();
@@ -33,6 +35,13 @@ private:
     float rightVelocity;
     float turnVelocity;
     float currentAngle;
+
+    float frontLeftSpeed;
+    float frontRightSpeed;
+    float centerLeftSpeed;
+    float centerRightSpeed;
+    float backLeftSpeed;
+    float backRightSpeed;
 } Drivetrain;
 
 #endif

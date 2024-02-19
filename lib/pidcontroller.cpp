@@ -14,6 +14,11 @@ void PIDController::setTarget(float value)
     this->target = value;
 }
 
+float PIDController::getTarget()
+{
+    return target;
+}
+
 bool PIDController::atTarget(float current)
 {
     return current >= target - threshold && current <= target + threshold;

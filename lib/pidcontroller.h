@@ -16,6 +16,8 @@ public:
 
     /// @brief Sets the PID target value
     void setTarget(float value);
+    /// @brief Returns the PID target value
+    float getTarget();
 
     /// @brief Calculates a PID output based on the current value and the set target
     /// @param current The current value

@@ -66,19 +66,18 @@ bool sendStart()
     WAIT_FOR_TWINT();
 
     uint8_t status = TW_STATUS;
-    dbg.info("sendStart status '%s'\n", TWI::nameOfStatus(status));
-
     if (status != TW_START && status != TW_REP_START)
     {
+        dbg.error("sendStart status '%s'\n", TWI::nameOfStatus(status));
         return false;
     }
     return true;
 }
 
-void TWI::sendTo(uint8_t address)
+bool TWI::sendTo(uint8_t address)
 {
     if (!sendStart())
-        return;
+        return false;
     // send SLA+W
     TWDR = (address << 1) + TW_WRITE;
     TWCR &= ~(1 << TWSTA);
@@ -86,14 +85,22 @@ void TWI::sendTo(uint8_t address)
     WAIT_FOR_TWINT();
 
     // check status
-    if (TW_STATUS != TW_MT_SLA_ACK)
-        return;
+    uint8_t status = TW_STATUS;
+    if (status != TW_MT_SLA_ACK)
+    {
+        dbg.error("sendTo status '%s'\n", nameOfStatus(status));
+        return false;
+    }
+    else
+    {
+        return true;
+    }
 }
 
-void TWI::requestFrom(uint8_t address)
+bool TWI::requestFrom(uint8_t address)
 {
     if (!sendStart())
-        return;
+        return false;
     // send SLA+R
     TWDR = (address << 1) + TW_READ;
     TWCR &= ~(1 << TWSTA);
@@ -102,23 +109,31 @@ void TWI::requestFrom(uint8_t address)
 
     // check status
     uint8_t status = TW_STATUS;
-    dbg.info("requestFrom status '%s'\n", nameOfStatus(status));
     if (status != TW_MR_SLA_ACK)
-        return;
+    {
+        dbg.error("requestFrom status '%s'\n", nameOfStatus(status));
+        return false;
+    }
+    else
+    {
+        // connect to I2C bus in read mode
+        connect();
+        return true;
+    }
+}
+
+uint8_t TWI::nextStatus()
+{
+    CLEAR_TWINT();
+    WAIT_FOR_TWINT();
+    return TW_STATUS;
 }
 
 void TWI::endTransfer()
 {
     TWCR |= (1 << TWSTO);
+    disconnect();
     CLEAR_TWINT();
-}
-
-uint8_t TWI::__internal_clearWait()
-{
-    CLEAR_TWINT();
-    WAIT_FOR_TWINT();
-    uint8_t status = TW_STATUS;
-    return status;
 }
 
 void TWI::resetState()
@@ -157,8 +172,6 @@ int TWI::readByte()
     uint8_t status = TW_STATUS;
     uint8_t data = TWDR;
 
-    dbg.info("readByte status '%s'\n", nameOfStatus(status));
-
     switch (status)
     {
     case TW_MR_DATA_ACK:
@@ -166,6 +179,8 @@ int TWI::readByte()
     case TW_SR_GCALL_DATA_ACK:
         return data;
     }
+
+    dbg.error("read status '%s'\n", nameOfStatus(status));
 
     return -1;
 }
@@ -188,30 +203,38 @@ int TWI::read(uint8_t *output, int count)
     return i;
 }
 
-bool TWI::write(uint8_t *data, int count)
+bool TWI::write(uint8_t *data, int count, bool last)
 {
     for (int i = 0; i < count; i++)
     {
-        uint8_t status = TW_STATUS;
-        dbg.info("write status '%s'\n", nameOfStatus(status));
-        if (status == TW_ST_SLA_ACK ||
-            status == TW_ST_ARB_LOST_SLA_ACK ||
-            status == TW_ST_DATA_ACK ||
-            status == TW_MT_DATA_ACK ||
-            status == TW_MT_SLA_ACK)
+        TWDR = data[i];
+        if (last && i == count - 1)
         {
-            dbg.info("sending %u\n", data[i]);
-            TWDR = data[i];
-            CLEAR_TWINT();
-            WAIT_FOR_TWINT();
+            disconnect();
         }
-        else
+        CLEAR_TWINT();
+        WAIT_FOR_TWINT();
+        if (last && i == count - 1)
         {
-            CLEAR_TWINT();
+            connect();
+        }
+        uint8_t status = TW_STATUS;
+        if (status != TW_ST_SLA_ACK &&
+            status != TW_ST_ARB_LOST_SLA_ACK &&
+            status != TW_ST_DATA_ACK &&
+            status != TW_MT_DATA_ACK &&
+            status != TW_MT_SLA_ACK)
+        {
+            dbg.error("write status '%s'\n", nameOfStatus(status));
             return false;
         }
     }
     return true;
+}
+
+bool TWI::write(uint8_t *data, int count)
+{
+    return write(data, count, false);
 }
 
 const char *TWI::nameOfStatus(uint8_t status)

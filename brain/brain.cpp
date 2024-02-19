@@ -3,9 +3,12 @@
 #include <ioutils.h>
 #include <usart.h>
 #include <serialdebug.h>
+#include <clock.h>
+#include <timer.h>
 
 DebugInterface debug;
 
+Clock clock;
 Drivetrain drivetrain;
 IOPort io = io_port_default;
 
@@ -16,40 +19,37 @@ int main()
     debug = DebugInterface("Brain", CURRENT_VERSION);
     debug.printHeader();
 
+    clock.init();
     drivetrain.enable();
     sei();
 
     io.reset();
     io.set_dir(LED_PIN, IODir::Out);
 
-    // drivetrain.drive(Direction::Forward);
-    drivetrain.requestUpdate();
-    return;
+    Timer timer(&clock);
 
     while (1)
     {
-        // Drivetrain test
-        debug.info("requesting update\r\n");
-        drivetrain.requestUpdate();
-        float power = drivetrain.getLeftPower();
-        debug.info("Left power: %f\r\n", power);
         drivetrain.drive(Direction::Forward);
-        drivetrain.requestUpdate();
-        float powerD = drivetrain.getLeftPower();
-        if (power != powerD)
+        for (int i = 0; i < 30; i++)
         {
-            while (1)
-            {
-                io.put(LED_PIN, true);
-                _delay_ms(50);
-                io.put(LED_PIN, false);
-                _delay_ms(50);
-            }
+            drivetrain.requestUpdate();
+            drivetrain.logTelemetry();
+            timer.spinWait(Time::fromSeconds(0.03f));
         }
-        else
+        drivetrain.drive(Direction::Backward);
+        for (int i = 0; i < 30; i++)
         {
-            io.put(LED_PIN, true);
+            drivetrain.requestUpdate();
+            drivetrain.logTelemetry();
+            timer.spinWait(Time::fromSeconds(0.03f));
         }
-        break;
+        drivetrain.stop();
+        for (int i = 0; i < 30; i++)
+        {
+            drivetrain.requestUpdate();
+            drivetrain.logTelemetry();
+            timer.spinWait(Time::fromSeconds(0.03f));
+        }
     }
 }

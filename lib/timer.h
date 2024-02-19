@@ -16,6 +16,11 @@ public:
     void reset();
     bool running();
 
+    /// @brief Performs a spin wait until the target time has elapsed
+    /// @note This restarts the timer
+    void spinWait(Time time);
+    void spinWait(Time &time);
+
 private:
     Clock *clock;
     unsigned long c_start;

@@ -22,6 +22,7 @@ public:
     void info(const char *__fmt, ...);
     void warn(const char *__fmt, ...);
     void error(const char *__fmt, ...);
+    void array(uint8_t *buf, int size);
 
 private:
     const char *name;

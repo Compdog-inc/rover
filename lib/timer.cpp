@@ -59,3 +59,17 @@ bool Timer::running()
 {
     return isRunning;
 }
+
+void Timer::spinWait(Time &time)
+{
+    restart();
+    while (!elapsed(time))
+        ;
+}
+
+void Timer::spinWait(Time time)
+{
+    restart();
+    while (!elapsed(time))
+        ;
+}

@@ -70,3 +70,15 @@ void DebugInterface::error(const char *__fmt, ...)
 
     va_end(args);
 }
+
+void DebugInterface::array(uint8_t *buf, int size)
+{
+    printf("[TRACE/%s]: [", name);
+    for (int i = 0; i < size; i++)
+    {
+        printf("%u", buf[i]);
+        if (i < size - 1)
+            putchar(',');
+    }
+    printf("]\n");
+}

@@ -4,6 +4,7 @@
 #include <clock.h>
 #include <i2c.h>
 #include <serialdebug.h>
+#include <timer.h>
 
 DebugInterface debug;
 
@@ -29,11 +30,13 @@ int main()
     io.reset();
     io.set_dir(LED_PIN, IODir::Out);
 
+    Timer timer(&clock);
+
     while (1)
     {
-        _delay_ms(30);
+        timer.spinWait(Time::fromSeconds(0.03f));
         io.put(LED_PIN, true);
-        _delay_ms(30);
+        timer.spinWait(Time::fromSeconds(0.03f));
         io.put(LED_PIN, false);
     }
 }
