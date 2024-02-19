@@ -20,7 +20,7 @@ namespace TWI
     void enableGeneralCall();
     /// @brief Disable recognition of the general call address (0x00)
     void disableGeneralCall();
-    /// @brief Masks the address comparison result (mask 010 will match addresses 111,010,110,011)
+    /// @brief Masks the address comparison result where 1 always matches (mask 101 will match addresses 111,010,110,011)
     /// @param mask 7-bit mask
     void setAddressMask(uint8_t mask);
 
@@ -33,6 +33,7 @@ namespace TWI
     void requestFrom(uint8_t address);
     /// @brief Ends current transfer of data in master mode (SLA+R/SLA+W)
     void endTransfer();
+    uint8_t __internal_clearWait();
 
     /// @brief Resets slave state to unaddressed
     void resetState();
@@ -55,6 +56,8 @@ namespace TWI
     /// @param count Number of bytes to write
     /// @return True if successfull
     bool write(uint8_t *data, int count);
+
+    const char *nameOfStatus(uint8_t status);
 }
 
 #endif

@@ -23,6 +23,7 @@ int main()
     io.set_dir(LED_PIN, IODir::Out);
 
     drivetrain.drive(Direction::Forward);
+    // drivetrain.requestUpdate();
     return;
 
     while (1)

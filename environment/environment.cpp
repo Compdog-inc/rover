@@ -23,7 +23,7 @@ int main()
     TWI::connect();
     TWI::disableGeneralCall();
     TWI::setAddress(ENVIRONMENT_I2C);
-    TWI::setAddressMask(0xFF);
+    TWI::setAddressMask(0x00);
     TWI::setSlave();
 
     io.reset();

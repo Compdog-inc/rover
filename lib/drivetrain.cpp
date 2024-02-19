@@ -2,6 +2,9 @@
 #include "drivetrain.h"
 #include "i2c.h"
 #include "constants.h"
+#include "serialdebug.h"
+
+DebugInterface dbgdrive("Drivetrain", Version(256));
 
 void Drivetrain::enable()
 {
@@ -46,6 +49,12 @@ void Drivetrain::requestUpdate()
     uint8_t buf[4];
 
     TWI::requestFrom(DRIVETRAIN_I2C);
+    // TWI::__internal_clearWait();
+    while (1)
+    {
+        int bt = TWI::readByte();
+        dbgdrive.info("data %i\n", bt);
+    }
 
     // read the current left and right drivetrain power (current PWM value of motors)
     if (TWI::read(buf, 4) != 4)

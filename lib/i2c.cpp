@@ -9,15 +9,17 @@
 
 #define CLEAR_TWINT() TWCR |= (1 << TWINT);
 
+DebugInterface dbg("I2C", Version(256));
+
 void TWI::enable()
 {
-    TWCR |= (1 << TWEN) | (1 << TWIE);
+    TWCR |= (1 << TWEN) | (0 << TWIE);
     TWBR = 12;
 }
 
 void TWI::disable()
 {
-    TWCR &= ~((1 << TWEN) | (1 << TWIE));
+    TWCR &= ~((1 << TWEN) | (0 << TWIE));
     TWBR = 0;
 }
 
@@ -62,9 +64,12 @@ bool sendStart()
     TWCR |= (1 << TWSTA);
     CLEAR_TWINT();
     WAIT_FOR_TWINT();
-    if (TW_STATUS != TW_START && TW_STATUS != TW_REP_START)
+
+    uint8_t status = TW_STATUS;
+    dbg.info("sendStart status '%s'\n", TWI::nameOfStatus(status));
+
+    if (status != TW_START && status != TW_REP_START)
     {
-        CLEAR_TWINT();
         return false;
     }
     return true;
@@ -91,11 +96,14 @@ void TWI::requestFrom(uint8_t address)
         return;
     // send SLA+R
     TWDR = (address << 1) + TW_READ;
+    TWCR &= ~(1 << TWSTA);
     CLEAR_TWINT();
     WAIT_FOR_TWINT();
 
     // check status
-    if (TW_STATUS != TW_MR_SLA_ACK)
+    uint8_t status = TW_STATUS;
+    dbg.info("requestFrom status '%s'\n", nameOfStatus(status));
+    if (status != TW_MR_SLA_ACK)
         return;
 }
 
@@ -103,6 +111,14 @@ void TWI::endTransfer()
 {
     TWCR |= (1 << TWSTO);
     CLEAR_TWINT();
+}
+
+uint8_t TWI::__internal_clearWait()
+{
+    CLEAR_TWINT();
+    WAIT_FOR_TWINT();
+    uint8_t status = TW_STATUS;
+    return status;
 }
 
 void TWI::resetState()
@@ -113,39 +129,34 @@ void TWI::resetState()
 
 bool TWI::readAvailable()
 {
-    bool available = (TWCR & (1 << TWINT));
-    if (available)
-    {
-        CLEAR_TWINT();
-    }
-    return available;
+    CLEAR_TWINT();
+    bool hasTwint = (TWCR & (1 << TWINT));
+    uint8_t status = TW_STATUS;
+    dbg.info("readAvailable status '%s':%s\n", nameOfStatus(status), hasTwint ? "true" : "false");
+    return status == TW_SR_SLA_ACK;
 }
 
 bool TWI::isDataRequested()
 {
-    if (!readAvailable())
+    if (readAvailable())
         return false;
 
-    if (TW_STATUS != TW_ST_SLA_ACK)
+    if (TW_STATUS == TW_ST_SLA_ACK)
     {
-        CLEAR_TWINT();
-        WAIT_FOR_TWINT();
-        return false;
+        return true;
     }
 
-    CLEAR_TWINT();
-
-    return true;
+    return false;
 }
 
 int TWI::readByte()
 {
+    CLEAR_TWINT();
     WAIT_FOR_TWINT();
     uint8_t status = TW_STATUS;
     uint8_t data = TWDR;
-    CLEAR_TWINT();
 
-    return data;
+    dbg.info("readByte status '%s'\n", nameOfStatus(status));
 
     switch (status)
     {
@@ -187,32 +198,79 @@ bool TWI::write(uint8_t *data, int count)
             status == TW_MT_DATA_ACK ||
             status == TW_MT_SLA_ACK || true)
         {
+            dbg.info("sending %u\n", data[i]);
             TWDR = data[i];
             CLEAR_TWINT();
             WAIT_FOR_TWINT();
         }
         else
         {
-            // CLEAR_TWINT();
+            CLEAR_TWINT();
             return false;
         }
     }
     return true;
 }
 
-DebugInterface dbg("I2C", Version(256));
-
-ISR(TWI_vect)
+const char *TWI::nameOfStatus(uint8_t status)
 {
-    uint8_t status = TW_STATUS;
-    // dbg.info("%u\r\n", status);
     switch (status)
     {
+    case TW_START:
+        return "TW_START";
+    case TW_REP_START:
+        return "TW_REP_START";
+    case TW_MT_SLA_ACK:
+        return "TW_MT_SLA_ACK";
+    case TW_MT_SLA_NACK:
+        return "TW_MT_SLA_NACK";
+    case TW_MT_DATA_ACK:
+        return "TW_MT_DATA_ACK";
+    case TW_MT_DATA_NACK:
+        return "TW_MT_DATA_NACK";
+    case TW_MT_ARB_LOST:
+        return "TW_M*_ARB_LOST";
+    case TW_MR_SLA_ACK:
+        return "TW_MR_SLA_ACK";
+    case TW_MR_SLA_NACK:
+        return "TW_MR_SLA_NACK";
+    case TW_MR_DATA_ACK:
+        return "TW_MR_DATA_ACK";
+    case TW_MR_DATA_NACK:
+        return "TW_MR_DATA_NACK";
+    case TW_ST_SLA_ACK:
+        return "TW_ST_SLA_ACK";
+    case TW_ST_ARB_LOST_SLA_ACK:
+        return "TW_ST_ARB_LOST_SLA_ACK";
+    case TW_ST_DATA_ACK:
+        return "TW_ST_DATA_ACK";
+    case TW_ST_DATA_NACK:
+        return "TW_ST_DATA_NACK";
     case TW_ST_LAST_DATA:
-    {
-        // clear interrupt
-        TWCR |= (1 << TWINT);
-        break;
-    }
+        return "TW_ST_LAST_DATA";
+    case TW_SR_SLA_ACK:
+        return "TW_SR_SLA_ACK";
+    case TW_SR_ARB_LOST_SLA_ACK:
+        return "TW_SR_ARB_LOST_SLA_ACK";
+    case TW_SR_GCALL_ACK:
+        return "TW_SR_GCALL_ACK";
+    case TW_SR_ARB_LOST_GCALL_ACK:
+        return "TW_SR_ARB_LOST_GCALL_ACK";
+    case TW_SR_DATA_ACK:
+        return "TW_SR_DATA_ACK";
+    case TW_SR_DATA_NACK:
+        return "TW_SR_DATA_NACK";
+    case TW_SR_GCALL_DATA_ACK:
+        return "TW_SR_GCALL_DATA_ACK";
+    case TW_SR_GCALL_DATA_NACK:
+        return "TW_SR_GCALL_DATA_NACK";
+    case TW_SR_STOP:
+        return "TW_SR_STOP";
+    case TW_NO_INFO:
+        return "TW_NO_INFO";
+    case TW_BUS_ERROR:
+        return "TW_BUS_ERROR";
+    default:
+        return "UNKNOWN";
     }
 }

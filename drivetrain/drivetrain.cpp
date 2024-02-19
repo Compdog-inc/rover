@@ -231,7 +231,7 @@ int main()
     TWI::connect();
     TWI::disableGeneralCall();
     TWI::setAddress(DRIVETRAIN_I2C);
-    TWI::setAddressMask(0xFF);
+    TWI::setAddressMask(0x00);
     TWI::setSlave();
 
     unsigned long prevCommandExec = 0;
@@ -253,15 +253,20 @@ int main()
             }
         }
         prevCommandExec = time;
+
+        // this only works because isDataRequested clears the TWINT flag when false
         if (TWI::isDataRequested())
         {
             debug.info("requested\r\n");
             requestData();
         }
+        // if readAvailable returns true, the START event is already consumed by the isDataRequested check
         else if (TWI::readAvailable())
         {
             debug.info("reading\r\n");
             receiveData();
+            uint8_t status = TWI::__internal_clearWait();
+            debug.info("after read '%s'\n", TWI::nameOfStatus(status));
         }
 
         _delay_us(1);
