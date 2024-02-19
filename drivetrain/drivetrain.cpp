@@ -254,7 +254,7 @@ int main()
         }
         prevCommandExec = time;
 
-        // this only works because isDataRequested clears the TWINT flag when false
+        // // this only works because isDataRequested clears the TWINT flag when false
         if (TWI::isDataRequested())
         {
             debug.info("requested\r\n");

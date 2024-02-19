@@ -129,10 +129,11 @@ void TWI::resetState()
 
 bool TWI::readAvailable()
 {
-    CLEAR_TWINT();
     bool hasTwint = (TWCR & (1 << TWINT));
     uint8_t status = TW_STATUS;
-    dbg.info("readAvailable status '%s':%s\n", nameOfStatus(status), hasTwint ? "true" : "false");
+
+    if (hasTwint && status == TW_SR_STOP)
+        CLEAR_TWINT();
     return status == TW_SR_SLA_ACK;
 }
 
