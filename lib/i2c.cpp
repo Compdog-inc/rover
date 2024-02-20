@@ -2,6 +2,9 @@
 #include "i2c.h"
 #include <util/twi.h>
 #include "serialdebug.h"
+#include "staticlist.h"
+
+static StaticList<TWIStatus> suppress_list(TWI_SUPPRESS_MAX_COUNT);
 
 #define WAIT_FOR_TWINT()           \
     while (!(TWCR & (1 << TWINT))) \
@@ -10,6 +13,11 @@
 #define CLEAR_TWINT() TWCR |= (1 << TWINT);
 
 DebugInterface dbg("I2C", Version(256));
+
+bool isSuppressed(TWIStatus status)
+{
+    return suppress_list.Find(status) != -1;
+}
 
 void TWI::enable()
 {
@@ -68,7 +76,8 @@ bool sendStart()
     uint8_t status = TW_STATUS;
     if (status != TW_START && status != TW_REP_START)
     {
-        dbg.error("sendStart status '%s'\n", TWI::nameOfStatus(status));
+        if (!isSuppressed((TWIStatus)status))
+            dbg.error("sendStart status '%s'\n", TWI::nameOfStatus((TWIStatus)status));
         return false;
     }
     return true;
@@ -88,7 +97,8 @@ bool TWI::sendTo(uint8_t address)
     uint8_t status = TW_STATUS;
     if (status != TW_MT_SLA_ACK)
     {
-        dbg.error("sendTo status '%s'\n", nameOfStatus(status));
+        if (!isSuppressed((TWIStatus)status))
+            dbg.error("sendTo status '%s'\n", nameOfStatus((TWIStatus)status));
         return false;
     }
     else
@@ -111,7 +121,8 @@ bool TWI::requestFrom(uint8_t address)
     uint8_t status = TW_STATUS;
     if (status != TW_MR_SLA_ACK)
     {
-        dbg.error("requestFrom status '%s'\n", nameOfStatus(status));
+        if (!isSuppressed((TWIStatus)status))
+            dbg.error("requestFrom status '%s'\n", nameOfStatus((TWIStatus)status));
         return false;
     }
     else
@@ -122,11 +133,11 @@ bool TWI::requestFrom(uint8_t address)
     }
 }
 
-uint8_t TWI::nextStatus()
+TWIStatus TWI::nextStatus()
 {
     CLEAR_TWINT();
     WAIT_FOR_TWINT();
-    return TW_STATUS;
+    return (TWIStatus)TW_STATUS;
 }
 
 void TWI::endTransfer()
@@ -180,7 +191,8 @@ int TWI::readByte()
         return data;
     }
 
-    dbg.error("read status '%s'\n", nameOfStatus(status));
+    if (!isSuppressed((TWIStatus)status))
+        dbg.error("read status '%s'\n", nameOfStatus((TWIStatus)status));
 
     return -1;
 }
@@ -223,9 +235,11 @@ bool TWI::write(uint8_t *data, int count, bool last)
             status != TW_ST_ARB_LOST_SLA_ACK &&
             status != TW_ST_DATA_ACK &&
             status != TW_MT_DATA_ACK &&
-            status != TW_MT_SLA_ACK)
+            status != TW_MT_SLA_ACK &&
+            status != TW_MT_DATA_NACK)
         {
-            dbg.error("write status '%s'\n", nameOfStatus(status));
+            if (!isSuppressed((TWIStatus)status))
+                dbg.error("write status '%s'\n", nameOfStatus((TWIStatus)status));
             return false;
         }
     }
@@ -237,65 +251,77 @@ bool TWI::write(uint8_t *data, int count)
     return write(data, count, false);
 }
 
-const char *TWI::nameOfStatus(uint8_t status)
+const char *TWI::nameOfStatus(TWIStatus status)
 {
     switch (status)
     {
-    case TW_START:
+    case TWIStatus::Start:
         return "TW_START";
-    case TW_REP_START:
+    case TWIStatus::RepStart:
         return "TW_REP_START";
-    case TW_MT_SLA_ACK:
+    case TWIStatus::MtSlaAck:
         return "TW_MT_SLA_ACK";
-    case TW_MT_SLA_NACK:
+    case TWIStatus::MtSlaNack:
         return "TW_MT_SLA_NACK";
-    case TW_MT_DATA_ACK:
+    case TWIStatus::MtDataAck:
         return "TW_MT_DATA_ACK";
-    case TW_MT_DATA_NACK:
+    case TWIStatus::MtDataNack:
         return "TW_MT_DATA_NACK";
-    case TW_MT_ARB_LOST:
+    case TWIStatus::MtArbLost:
         return "TW_M*_ARB_LOST";
-    case TW_MR_SLA_ACK:
+    case TWIStatus::MrSlaAck:
         return "TW_MR_SLA_ACK";
-    case TW_MR_SLA_NACK:
+    case TWIStatus::MrSlaNack:
         return "TW_MR_SLA_NACK";
-    case TW_MR_DATA_ACK:
+    case TWIStatus::MrDataAck:
         return "TW_MR_DATA_ACK";
-    case TW_MR_DATA_NACK:
+    case TWIStatus::MrDataNack:
         return "TW_MR_DATA_NACK";
-    case TW_ST_SLA_ACK:
+    case TWIStatus::StSlaAck:
         return "TW_ST_SLA_ACK";
-    case TW_ST_ARB_LOST_SLA_ACK:
+    case TWIStatus::StArbLostSlaAck:
         return "TW_ST_ARB_LOST_SLA_ACK";
-    case TW_ST_DATA_ACK:
+    case TWIStatus::StDataAck:
         return "TW_ST_DATA_ACK";
-    case TW_ST_DATA_NACK:
+    case TWIStatus::StDataNack:
         return "TW_ST_DATA_NACK";
-    case TW_ST_LAST_DATA:
+    case TWIStatus::StLastData:
         return "TW_ST_LAST_DATA";
-    case TW_SR_SLA_ACK:
+    case TWIStatus::SrSlaAck:
         return "TW_SR_SLA_ACK";
-    case TW_SR_ARB_LOST_SLA_ACK:
+    case TWIStatus::SrArbLostSlaAck:
         return "TW_SR_ARB_LOST_SLA_ACK";
-    case TW_SR_GCALL_ACK:
+    case TWIStatus::SrGcallAck:
         return "TW_SR_GCALL_ACK";
-    case TW_SR_ARB_LOST_GCALL_ACK:
+    case TWIStatus::SrArbLostGcallAck:
         return "TW_SR_ARB_LOST_GCALL_ACK";
-    case TW_SR_DATA_ACK:
+    case TWIStatus::SrDataAck:
         return "TW_SR_DATA_ACK";
-    case TW_SR_DATA_NACK:
+    case TWIStatus::SrDataNack:
         return "TW_SR_DATA_NACK";
-    case TW_SR_GCALL_DATA_ACK:
+    case TWIStatus::SrGcallDataAck:
         return "TW_SR_GCALL_DATA_ACK";
-    case TW_SR_GCALL_DATA_NACK:
+    case TWIStatus::SrGcallDataNack:
         return "TW_SR_GCALL_DATA_NACK";
-    case TW_SR_STOP:
+    case TWIStatus::Stop:
         return "TW_SR_STOP";
-    case TW_NO_INFO:
+    case TWIStatus::NoInfo:
         return "TW_NO_INFO";
-    case TW_BUS_ERROR:
+    case TWIStatus::BusError:
         return "TW_BUS_ERROR";
     default:
         return "UNKNOWN";
     }
+}
+
+void TWI::suppress(TWIStatus status)
+{
+    suppress_list.Add(status);
+}
+
+void TWI::unsuppress(TWIStatus status)
+{
+    int ind = suppress_list.Find(status);
+    if (ind != -1)
+        suppress_list.Remove(ind);
 }

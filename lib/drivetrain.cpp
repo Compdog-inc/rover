@@ -5,8 +5,14 @@
 #include "serialdebug.h"
 #include "timer.h"
 #include "serialize.h"
+#include "serialterminal.h"
 
 DebugInterface dbgdrive("Drivetrain", Version(256));
+
+Drivetrain::Drivetrain(Clock *clock)
+{
+    this->clock = clock;
+}
 
 void Drivetrain::enable()
 {
@@ -20,6 +26,50 @@ void Drivetrain::disable()
 
 void Drivetrain::setVelocity(float left, float right)
 {
+    uint8_t cmd[9];
+    cmd[0] = CMD_DRIVETRAIN_SET_VELOCITY; // id
+    encodeFloat(cmd + 1, left);
+    encodeFloat(cmd + 5, right);
+
+    if (!TWI::sendTo(DRIVETRAIN_I2C) && false)
+    {
+        dbgdrive.error("setVelocity error addressing device\n");
+        return;
+    }
+
+    if (!TWI::write(cmd, 9))
+    {
+        dbgdrive.error("setVelocity error sending command\n");
+        return;
+    }
+
+    TWI::endTransfer();
+
+    leftVelocity = left;
+    rightVelocity = right;
+}
+
+void Drivetrain::setTurnVelocity(float velocity)
+{
+    uint8_t cmd[5];
+    cmd[0] = CMD_DRIVETRAIN_SET_TURN_VELOCITY; // id
+    encodeFloat(cmd + 1, velocity);
+
+    if (!TWI::sendTo(DRIVETRAIN_I2C))
+    {
+        dbgdrive.error("setTurnVelocity error addressing device\n");
+        return;
+    }
+
+    if (!TWI::write(cmd, 5))
+    {
+        dbgdrive.error("setTurnVelocity error sending command\n");
+        return;
+    }
+
+    TWI::endTransfer();
+
+    turnVelocity = velocity;
 }
 
 void Drivetrain::drive(Direction direction)
@@ -28,8 +78,18 @@ void Drivetrain::drive(Direction direction)
     cmd[0] = CMD_DRIVETRAIN_DRIVE; // id
     cmd[1] = direction == Direction::Forward ? DRIVETRAIN_DIRECTION_FORWARD : DRIVETRAIN_DIRECTION_BACKWARD;
 
-    TWI::sendTo(DRIVETRAIN_I2C);
-    TWI::write(cmd, 2);
+    if (!TWI::sendTo(DRIVETRAIN_I2C))
+    {
+        dbgdrive.error("drive error addressing device\n");
+        return;
+    }
+
+    if (!TWI::write(cmd, 2))
+    {
+        dbgdrive.error("drive error sending command\n");
+        return;
+    }
+
     TWI::endTransfer();
 }
 
@@ -38,8 +98,60 @@ void Drivetrain::stop()
     uint8_t cmd[1];
     cmd[0] = CMD_DRIVETRAIN_STOP; // id
 
-    TWI::sendTo(DRIVETRAIN_I2C);
-    TWI::write(cmd, 1);
+    if (!TWI::sendTo(DRIVETRAIN_I2C))
+    {
+        dbgdrive.error("stop error addressing device\n");
+        return;
+    }
+
+    if (!TWI::write(cmd, 1))
+    {
+        dbgdrive.error("stop error sending command\n");
+        return;
+    }
+
+    TWI::endTransfer();
+}
+
+void Drivetrain::turn(float angle)
+{
+    uint8_t cmd[5];
+    cmd[0] = CMD_DRIVETRAIN_TURN; // id
+    encodeFloat(cmd + 1, angle);
+
+    if (!TWI::sendTo(DRIVETRAIN_I2C))
+    {
+        dbgdrive.error("turn error addressing device\n");
+        return;
+    }
+
+    if (!TWI::write(cmd, 5))
+    {
+        dbgdrive.error("turn error sending command\n");
+        return;
+    }
+
+    TWI::endTransfer();
+}
+
+void Drivetrain::move(float distance)
+{
+    uint8_t cmd[5];
+    cmd[0] = CMD_DRIVETRAIN_MOVE; // id
+    encodeFloat(cmd + 1, distance);
+
+    if (!TWI::sendTo(DRIVETRAIN_I2C))
+    {
+        dbgdrive.error("move error addressing device\n");
+        return;
+    }
+
+    if (!TWI::write(cmd, 5))
+    {
+        dbgdrive.error("move error sending command\n");
+        return;
+    }
+
     TWI::endTransfer();
 }
 
@@ -53,7 +165,6 @@ void Drivetrain::requestUpdate()
     // read the current motor speeds
     if (TWI::read(buf, 4) != 4)
         return;
-    dbgdrive.array(buf, 4);
     frontLeftSpeed = decodeFloat(buf);
     if (TWI::read(buf, 4) != 4)
         return;
@@ -96,28 +207,50 @@ void Drivetrain::logTelemetry()
 {
     char buf[20];
 
+    SerialTerminal::hideCursor();
+    SerialTerminal::moveCursor(1, 1);
+
     ftoa(currentLeftPower, buf, 20, 4);
-    dbgdrive.info("leftPower: %s\n", buf);
+    dbgdrive.info("leftPower: %s", buf);
+    SerialTerminal::eraseFromCursorEndLine();
+    SerialTerminal::moveCursorToNextLine(1);
     ftoa(currentRightPower, buf, 20, 4);
-    dbgdrive.info("rightPower: %s\n", buf);
-
-    dbgdrive.info("currentCommand: %u\n", currentCommandId);
-
+    dbgdrive.info("rightPower: %s", buf);
+    SerialTerminal::eraseFromCursorEndLine();
+    SerialTerminal::moveCursorToNextLine(1);
+    dbgdrive.info("currentCommand: %u", currentCommandId);
+    SerialTerminal::eraseFromCursorEndLine();
+    SerialTerminal::moveCursorToNextLine(1);
     ftoa(currentAngle, buf, 20, 4);
-    dbgdrive.info("angle: %s\n", buf);
-
+    dbgdrive.info("angle: %s", buf);
+    SerialTerminal::eraseFromCursorEndLine();
+    SerialTerminal::moveCursorToNextLine(1);
     ftoa(frontLeftSpeed, buf, 20, 4);
-    dbgdrive.info("frontLeftSpeed: %s\n", buf);
+    dbgdrive.info("frontLeftSpeed: %s", buf);
+    SerialTerminal::eraseFromCursorEndLine();
+    SerialTerminal::moveCursorToNextLine(1);
     ftoa(frontRightSpeed, buf, 20, 4);
-    dbgdrive.info("frontRightSpeed: %s\n", buf);
+    dbgdrive.info("frontRightSpeed: %s", buf);
+    SerialTerminal::eraseFromCursorEndLine();
+    SerialTerminal::moveCursorToNextLine(1);
     ftoa(centerLeftSpeed, buf, 20, 4);
-    dbgdrive.info("centerLeftSpeed: %s\n", buf);
+    dbgdrive.info("centerLeftSpeed: %s", buf);
+    SerialTerminal::eraseFromCursorEndLine();
+    SerialTerminal::moveCursorToNextLine(1);
     ftoa(centerRightSpeed, buf, 20, 4);
-    dbgdrive.info("centerRightSpeed: %s\n", buf);
+    dbgdrive.info("centerRightSpeed: %s", buf);
+    SerialTerminal::eraseFromCursorEndLine();
+    SerialTerminal::moveCursorToNextLine(1);
     ftoa(backLeftSpeed, buf, 20, 4);
-    dbgdrive.info("backLeftSpeed: %s\n", buf);
+    dbgdrive.info("backLeftSpeed: %s", buf);
+    SerialTerminal::eraseFromCursorEndLine();
+    SerialTerminal::moveCursorToNextLine(1);
     ftoa(backRightSpeed, buf, 20, 4);
-    dbgdrive.info("backRightSpeed: %s\n", buf);
+    dbgdrive.info("backRightSpeed: %s", buf);
+    SerialTerminal::eraseFromCursorEndLine();
+    SerialTerminal::moveCursorToNextLine(1);
+
+    SerialTerminal::showCursor();
 }
 
 float Drivetrain::getLeftPower()
@@ -138,6 +271,18 @@ uint8_t Drivetrain::currentCommand()
 bool Drivetrain::isBusy()
 {
     return currentCommandId != CMD_NONE;
+}
+
+void Drivetrain::waitUntilAvailable()
+{
+    Timer timer(clock);
+    requestUpdate();
+    while (isBusy())
+    {
+        requestUpdate();
+        logTelemetry();
+        timer.spinWait(Time::fromSeconds(0.03f));
+    }
 }
 
 float Drivetrain::getLeftVelocity()

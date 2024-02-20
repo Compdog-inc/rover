@@ -24,9 +24,8 @@ enum class TerminalColor
     BrightWhite
 };
 
-typedef struct SerialTerminal
+namespace SerialTerminal
 {
-public:
     void bell();
 
     void homeCursor();
@@ -67,8 +66,6 @@ public:
 
     void hideCursor();
     void showCursor();
-
-private:
-} SerialTerminal;
+}
 
 #endif

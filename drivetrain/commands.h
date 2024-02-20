@@ -21,6 +21,11 @@ typedef struct
 
 typedef struct
 {
+    float velocity;
+} SetTurnVelocityCommandData;
+
+typedef struct
+{
     float distance;
 } MoveCommandData;
 
@@ -34,6 +39,7 @@ typedef struct
         DriveCommandData driveData;
         TurnCommandData turnData;
         SetVelocityCommandData setVelocityData;
+        SetTurnVelocityCommandData setTurnVelocityData;
         MoveCommandData moveData;
     };
 } Command;

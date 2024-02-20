@@ -9,7 +9,7 @@
 DebugInterface debug;
 
 Clock clock;
-Drivetrain drivetrain;
+Drivetrain drivetrain(&clock);
 IOPort io = io_port_default;
 
 #define LED_PIN 13
@@ -27,29 +27,21 @@ int main()
     io.set_dir(LED_PIN, IODir::Out);
 
     Timer timer(&clock);
-
     while (1)
     {
-        drivetrain.drive(Direction::Forward);
-        for (int i = 0; i < 30; i++)
-        {
-            drivetrain.requestUpdate();
-            drivetrain.logTelemetry();
-            timer.spinWait(Time::fromSeconds(0.03f));
-        }
-        drivetrain.drive(Direction::Backward);
-        for (int i = 0; i < 30; i++)
-        {
-            drivetrain.requestUpdate();
-            drivetrain.logTelemetry();
-            timer.spinWait(Time::fromSeconds(0.03f));
-        }
-        drivetrain.stop();
-        for (int i = 0; i < 30; i++)
-        {
-            drivetrain.requestUpdate();
-            drivetrain.logTelemetry();
-            timer.spinWait(Time::fromSeconds(0.03f));
-        }
+        drivetrain.waitUntilAvailable();
+        // drivetrain.drive(Direction::Forward);
+        // drivetrain.waitUntilAvailable();
+        // drivetrain.setVelocity(-1.0f, 1.0f);
+        // drivetrain.waitUntilAvailable();
+        // timer.spinWait(Time::fromSeconds(1.0f));
+        // drivetrain.drive(Direction::Backward);
+        // drivetrain.waitUntilAvailable();
+        // drivetrain.setVelocity(1.0f, -1.0f);
+        // drivetrain.waitUntilAvailable();
+        // timer.spinWait(Time::fromSeconds(1.0f));
+        // drivetrain.stop();
+        // drivetrain.waitUntilAvailable();
+        // timer.spinWait(Time::fromSeconds(1.0f));
     }
 }

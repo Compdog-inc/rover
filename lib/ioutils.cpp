@@ -1,6 +1,6 @@
 #include "ioutils.h"
 
-static StaticList<IOPort8> irq_list(IO_IRQ_MAX_COUNT);
+static StaticList<IOPort8 *> irq_list(IO_IRQ_MAX_COUNT);
 
 static void global_irq_handler(uint8_t pcgroup)
 {

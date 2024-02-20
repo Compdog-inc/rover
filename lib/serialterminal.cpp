@@ -20,9 +20,9 @@ void SerialTerminal::homeCursor()
 void SerialTerminal::moveCursor(int line, int column)
 {
     escape();
-    printf("[{%i};{%i}H", line, column);
+    printf("[%i;%iH", line, column);
     escape();
-    printf("[{%i};{%i}f", line, column);
+    printf("[%i;%if", line, column);
 }
 void SerialTerminal::moveCursorUp(int num)
 {
@@ -174,12 +174,150 @@ void SerialTerminal::strikethroughMode(bool enabled)
         printf("[29m");
 }
 
-void SerialTerminal::setForegroundColor(TerminalColor color) {}
-void SerialTerminal::setBackgroundColor(TerminalColor color) {}
-void SerialTerminal::setForegroundColor(uint8_t color256) {}
-void SerialTerminal::setBackgroundColor(uint8_t color256) {}
-void SerialTerminal::setForegroundColor(uint8_t r, uint8_t g, uint8_t b) {}
-void SerialTerminal::setBackgroundColor(uint8_t r, uint8_t g, uint8_t b) {}
+void SerialTerminal::setForegroundColor(TerminalColor color)
+{
+    escape();
+    switch (color)
+    {
+    case TerminalColor::Black:
+        printf("[30m");
+        break;
+    case TerminalColor::Red:
+        printf("[31m");
+        break;
+    case TerminalColor::Green:
+        printf("[32m");
+        break;
+    case TerminalColor::Yellow:
+        printf("[33m");
+        break;
+    case TerminalColor::Blue:
+        printf("[34m");
+        break;
+    case TerminalColor::Magenta:
+        printf("[35m");
+        break;
+    case TerminalColor::Cyan:
+        printf("[36m");
+        break;
+    case TerminalColor::White:
+        printf("[37m");
+        break;
+    case TerminalColor::Default:
+        printf("[39m");
+        break;
+    case TerminalColor::BrightBlack:
+        printf("[90m");
+        break;
+    case TerminalColor::BrightRed:
+        printf("[91m");
+        break;
+    case TerminalColor::BrightGreen:
+        printf("[92m");
+        break;
+    case TerminalColor::BrightYellow:
+        printf("[93m");
+        break;
+    case TerminalColor::BrightBlue:
+        printf("[94m");
+        break;
+    case TerminalColor::BrightMagenta:
+        printf("[95m");
+        break;
+    case TerminalColor::BrightCyan:
+        printf("[96m");
+        break;
+    case TerminalColor::BrightWhite:
+        printf("[97m");
+        break;
+    }
+}
+void SerialTerminal::setBackgroundColor(TerminalColor color)
+{
+    escape();
+    switch (color)
+    {
+    case TerminalColor::Black:
+        printf("[40m");
+        break;
+    case TerminalColor::Red:
+        printf("[41m");
+        break;
+    case TerminalColor::Green:
+        printf("[42m");
+        break;
+    case TerminalColor::Yellow:
+        printf("[43m");
+        break;
+    case TerminalColor::Blue:
+        printf("[44m");
+        break;
+    case TerminalColor::Magenta:
+        printf("[45m");
+        break;
+    case TerminalColor::Cyan:
+        printf("[46m");
+        break;
+    case TerminalColor::White:
+        printf("[47m");
+        break;
+    case TerminalColor::Default:
+        printf("[49m");
+        break;
+    case TerminalColor::BrightBlack:
+        printf("[100m");
+        break;
+    case TerminalColor::BrightRed:
+        printf("[101m");
+        break;
+    case TerminalColor::BrightGreen:
+        printf("[102m");
+        break;
+    case TerminalColor::BrightYellow:
+        printf("[103m");
+        break;
+    case TerminalColor::BrightBlue:
+        printf("[104m");
+        break;
+    case TerminalColor::BrightMagenta:
+        printf("[105m");
+        break;
+    case TerminalColor::BrightCyan:
+        printf("[106m");
+        break;
+    case TerminalColor::BrightWhite:
+        printf("[107m");
+        break;
+    }
+}
+void SerialTerminal::setForegroundColor(uint8_t color256)
+{
+    escape();
+    printf("[38;5;%um", color256);
+}
+void SerialTerminal::setBackgroundColor(uint8_t color256)
+{
+    escape();
+    printf("[48;5;%um", color256);
+}
+void SerialTerminal::setForegroundColor(uint8_t r, uint8_t g, uint8_t b)
+{
+    escape();
+    printf("[38;2;%u;%u;%um", r, g, b);
+}
+void SerialTerminal::setBackgroundColor(uint8_t r, uint8_t g, uint8_t b)
+{
+    escape();
+    printf("[48;2;%u;%u;%um", r, g, b);
+}
 
-void SerialTerminal::hideCursor() {}
-void SerialTerminal::showCursor() {}
+void SerialTerminal::hideCursor()
+{
+    escape();
+    printf("[?25l");
+}
+void SerialTerminal::showCursor()
+{
+    escape();
+    printf("[?25h");
+}

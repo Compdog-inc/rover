@@ -114,6 +114,11 @@ bool processCommand(Command cmd, unsigned long delta)
         setPIDTargets();
         return allWheelsAtTarget();
     }
+    case CMD_DRIVETRAIN_SET_TURN_VELOCITY:
+    {
+        turnVelocity = cmd.setTurnVelocityData.velocity;
+        return true;
+    }
     case CMD_DRIVETRAIN_MOVE:
     {
         // Placeholder without precise distance measurements
@@ -133,12 +138,7 @@ void requestData()
     uint8_t buf[4];
 
     // return the current motor speeds
-    char buf2[20];
-    ftoa(frontLeftController.getSpeed(), buf2, 20, 4);
-    debug.info("l: %s\n", buf2);
-
     encodeFloat(buf, frontLeftController.getSpeed());
-    debug.array(buf, 4);
     OK(TWI::write(buf, 4));
     encodeFloat(buf, frontRightController.getSpeed());
     OK(TWI::write(buf, 4));
@@ -168,13 +168,12 @@ void requestData()
 void receiveData()
 {
     int id = TWI::readByte();
-    debug.info("Byte: %i\r\n", id);
+
     switch (id)
     {
     case CMD_DRIVETRAIN_DRIVE:
     {
         int direction = TWI::readByte();
-        debug.info("Dir: %i\r\n", direction);
         command = {};
         command.id = CMD_DRIVETRAIN_DRIVE;
         command.startTime = clock.counter();
@@ -218,6 +217,20 @@ void receiveData()
         }
         break;
     }
+    case CMD_DRIVETRAIN_SET_TURN_VELOCITY:
+    {
+        uint8_t buf[4];
+        if (TWI::read(buf, 4) == 4)
+        {
+            float velocity = decodeFloat(buf);
+            command = {};
+            command.id = CMD_DRIVETRAIN_SET_TURN_VELOCITY;
+            command.startTime = clock.counter();
+            command.setTurnVelocityData = {};
+            command.setTurnVelocityData.velocity = velocity;
+        }
+        break;
+    }
     case CMD_DRIVETRAIN_MOVE:
     {
         uint8_t buf[4];
@@ -248,6 +261,8 @@ int main()
     TWI::setAddressMask(0x00);
     TWI::setSlave();
 
+    TWI::suppress(TWIStatus::NoInfo);
+
     unsigned long prevCommandExec = 0;
 
     while (1)
@@ -259,7 +274,14 @@ int main()
             // Check if it has new command queued and set that as current command
             if (command.startTime != currentCommand.startTime)
             {
-                debug.info("Command finished [%u/%lu] -> [%u/%lu]\n", currentCommand.id, currentCommand.startTime, command.id, command.startTime);
+                if (currentCommand.id != CMD_NONE)
+                {
+                    debug.info("Command finished [%u/%lu] -> [%u/%lu]\n", currentCommand.id, currentCommand.startTime, command.id, command.startTime);
+                }
+                else
+                {
+                    debug.info("New command [%u/%lu]\n", command.id, command.startTime);
+                }
                 currentCommand = command;
             }
             else // Else set current command to None
@@ -271,15 +293,16 @@ int main()
 
         if (TWI::isDataRequested())
         {
-            debug.info("requested\r\n");
             requestData();
         }
         else if (TWI::readAvailable())
         {
-            debug.info("reading\r\n");
             receiveData();
-            uint8_t status = TWI::nextStatus();
-            debug.info("after read '%s'\n", TWI::nameOfStatus(status));
+            TWIStatus status = TWI::nextStatus();
+            if (status != TWIStatus::Stop)
+            {
+                debug.error("after read status '%s'\n", TWI::nameOfStatus(status));
+            }
         }
 
         _delay_us(1);
@@ -301,62 +324,5 @@ int main()
         centerRightController.update(centerRightMotor, timestamp);
         backLeftController.update(backLeftMotor, timestamp);
         backRightController.update(backRightMotor, timestamp);
-
-        /*if (currentCommand.id == CMD_NONE && (time - currentCommand.startTime) > 4000000)
-        {
-            int t = rand() % 7; // stop,forward,backward,left,right
-            if (t == 0 || t == 5 || t == 6)
-            {
-                debug.info("forward\r\n");
-                int direction = DRIVETRAIN_DIRECTION_FORWARD;
-                command = {};
-                command.id = CMD_DRIVETRAIN_DRIVE;
-                command.startTime = clock.counter();
-                command.driveData.direction = (uint8_t)direction;
-                leftVelocity = 1.0f;
-                rightVelocity = 1.0f;
-            }
-            else if (t == 1)
-            {
-                debug.info("backward\r\n");
-                int direction = DRIVETRAIN_DIRECTION_BACKWARD;
-                command = {};
-                command.id = CMD_DRIVETRAIN_DRIVE;
-                command.startTime = clock.counter();
-                command.driveData.direction = (uint8_t)direction;
-                leftVelocity = 1.0f;
-                rightVelocity = 1.0f;
-            }
-            else if (t == 2)
-            {
-                debug.info("left\r\n");
-                int direction = DRIVETRAIN_DIRECTION_FORWARD;
-                command = {};
-                command.id = CMD_DRIVETRAIN_DRIVE;
-                command.startTime = clock.counter();
-                command.driveData.direction = (uint8_t)direction;
-                leftVelocity = -1.0f;
-                rightVelocity = 1.0f;
-            }
-            else if (t == 3)
-            {
-                debug.info("right\r\n");
-                int direction = DRIVETRAIN_DIRECTION_FORWARD;
-                command = {};
-                command.id = CMD_DRIVETRAIN_DRIVE;
-                command.startTime = clock.counter();
-                command.driveData.direction = (uint8_t)direction;
-                leftVelocity = 1.0f;
-                rightVelocity = -1.0f;
-            }
-            else if (t == 4)
-            {
-                debug.info("stop\r\n");
-                command = {};
-                command.id = CMD_DRIVETRAIN_STOP;
-                command.startTime = clock.counter();
-            }
-            currentCommand = command;
-        }*/
     }
 }
