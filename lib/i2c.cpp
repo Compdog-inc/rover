@@ -1,18 +1,99 @@
 #include "framework.h"
 #include "i2c.h"
 #include <util/twi.h>
+#include "internal/i2cmaster.h"
+#include "internal/i2cslave.h"
 #include "serialdebug.h"
 #include "staticlist.h"
 
 static StaticList<TWIStatus> suppress_list(TWI_SUPPRESS_MAX_COUNT);
 
-#define WAIT_FOR_TWINT()           \
-    while (!(TWCR & (1 << TWINT))) \
-        ;
-
-#define CLEAR_TWINT() TWCR |= (1 << TWINT);
-
 DebugInterface dbg("I2C", Version(256));
+
+bool isTransfering = false;
+bool isSlave = false;
+static volatile bool slaveRequested = false;
+#define RECV_BUFFER_SIZE 64
+static volatile uint8_t recv_buffer[RECV_BUFFER_SIZE];
+static volatile uint8_t recv_buffer_put_pos = 0;
+static volatile uint8_t recv_buffer_get_pos = 0;
+static volatile uint8_t recv_buffer_len = 0;
+
+void recv(uint8_t data)
+{
+    dbg.info("rec: %u\n", data);
+    recv_buffer[recv_buffer_put_pos++] = data;
+    recv_buffer_len++;
+    if (recv_buffer_put_pos >= RECV_BUFFER_SIZE)
+    {
+        recv_buffer_put_pos = 0;
+    }
+}
+
+void req()
+{
+    slaveRequested = true;
+}
+
+static int sput(uint8_t data, ByteStream *stream)
+{
+    dbg.info("sput\n");
+
+    if (isSlave)
+    {
+        I2C_transmitByte(data);
+        return 1;
+    }
+    else
+    {
+        if (i2c_write(data) == 1)
+        {
+            return -1;
+        }
+        return 1;
+    }
+}
+
+int sget(ByteStream *stream, bool last)
+{
+    if (isSlave)
+    {
+        if (recv_buffer_len > 0)
+        {
+            uint8_t d = recv_buffer[recv_buffer_get_pos++];
+            recv_buffer_len--;
+            if (recv_buffer_get_pos >= RECV_BUFFER_SIZE)
+            {
+                recv_buffer_get_pos = 0;
+            }
+            return d;
+        }
+        else
+        {
+            return -1;
+        }
+    }
+    else
+    {
+        if (last)
+        {
+            isTransfering = false;
+        }
+        return i2c_read(!last);
+    }
+}
+
+int slen(ByteStream *stream)
+{
+    if (isSlave)
+    {
+        return recv_buffer_len;
+    }
+    else
+    {
+        return -1;
+    }
+}
 
 bool isSuppressed(TWIStatus status)
 {
@@ -21,234 +102,80 @@ bool isSuppressed(TWIStatus status)
 
 void TWI::enable()
 {
-    TWCR |= (1 << TWEN) | (0 << TWIE);
-    TWBR = 12;
+    isSlave = false;
+    i2c_init();
+    sei();
+}
+
+void TWI::enable(uint8_t address)
+{
+    isSlave = true;
+    I2C_setCallbacks(recv, req);
+    I2C_init(address);
+    sei();
 }
 
 void TWI::disable()
 {
-    TWCR &= ~((1 << TWEN) | (0 << TWIE));
-    TWBR = 0;
-}
-
-void TWI::setAddress(uint8_t address)
-{
-    TWAR &= (1 << TWGCE);
-    TWAR |= address << 1;
-}
-
-void TWI::enableGeneralCall()
-{
-    TWAR |= (1 << TWGCE);
-}
-
-void TWI::disableGeneralCall()
-{
-    TWAR &= ~(1 << TWGCE);
-}
-
-void TWI::setAddressMask(uint8_t mask)
-{
-    TWAMR = mask << 1;
-}
-
-void TWI::connect()
-{
-    TWCR |= (1 << TWEA);
-}
-
-void TWI::disconnect()
-{
-    TWCR &= ~(1 << TWEA);
-}
-
-void TWI::setSlave()
-{
-    TWCR &= ~((1 << TWSTA) | (1 << TWSTO));
-}
-
-bool sendStart()
-{
-    TWCR |= (1 << TWSTA);
-    CLEAR_TWINT();
-    WAIT_FOR_TWINT();
-
-    uint8_t status = TW_STATUS;
-    if (status != TW_START && status != TW_REP_START)
+    if (isSlave)
     {
-        if (!isSuppressed((TWIStatus)status))
-            dbg.error("sendStart status '%s'\n", TWI::nameOfStatus((TWIStatus)status));
-        return false;
+        isSlave = false;
+        I2C_stop();
     }
-    return true;
+    else
+    {
+        TWCR = 0;
+        TWBR = 0;
+    }
 }
 
 bool TWI::sendTo(uint8_t address)
 {
-    if (!sendStart())
-        return false;
-    // send SLA+W
-    TWDR = (address << 1) + TW_WRITE;
-    TWCR &= ~(1 << TWSTA);
-    CLEAR_TWINT();
-    WAIT_FOR_TWINT();
-
-    // check status
-    uint8_t status = TW_STATUS;
-    if (status != TW_MT_SLA_ACK)
+    if (!isTransfering)
     {
-        if (!isSuppressed((TWIStatus)status))
-            dbg.error("sendTo status '%s'\n", nameOfStatus((TWIStatus)status));
-        return false;
+        i2c_start_wait((address & 0xFE) + I2C_WRITE);
+        isTransfering = true;
+        return true;
     }
     else
     {
-        return true;
+        return i2c_rep_start((address & 0xFE) + I2C_WRITE) == 0;
     }
 }
 
 bool TWI::requestFrom(uint8_t address)
 {
-    if (!sendStart())
-        return false;
-    // send SLA+R
-    TWDR = (address << 1) + TW_READ;
-    TWCR &= ~(1 << TWSTA);
-    CLEAR_TWINT();
-    WAIT_FOR_TWINT();
-
-    // check status
-    uint8_t status = TW_STATUS;
-    if (status != TW_MR_SLA_ACK)
+    if (!isTransfering)
     {
-        if (!isSuppressed((TWIStatus)status))
-            dbg.error("requestFrom status '%s'\n", nameOfStatus((TWIStatus)status));
-        return false;
+        i2c_start_wait((address & 0xFE) + I2C_READ);
+        isTransfering = true;
+        return true;
     }
     else
     {
-        // connect to I2C bus in read mode
-        connect();
-        return true;
+        return i2c_rep_start((address & 0xFE) + I2C_READ) == 0;
     }
 }
 
-TWIStatus TWI::nextStatus()
+TWIStatus TWI::getStatus()
 {
-    CLEAR_TWINT();
-    WAIT_FOR_TWINT();
     return (TWIStatus)TW_STATUS;
 }
 
 void TWI::endTransfer()
 {
-    TWCR |= (1 << TWSTO);
-    disconnect();
-    CLEAR_TWINT();
+    i2c_stop();
+    isTransfering = false;
 }
 
-void TWI::resetState()
+ByteStream TWI::getStream()
 {
-    TWCR |= (1 << TWSTO);
-    CLEAR_TWINT();
-}
-
-bool TWI::readAvailable()
-{
-    bool hasTwint = (TWCR & (1 << TWINT));
-    uint8_t status = TW_STATUS;
-
-    if (hasTwint && status == TW_SR_STOP)
-        CLEAR_TWINT();
-    return status == TW_SR_SLA_ACK;
+    return {sput, sget, slen};
 }
 
 bool TWI::isDataRequested()
 {
-    if (readAvailable())
-        return false;
-
-    if (TW_STATUS == TW_ST_SLA_ACK)
-    {
-        return true;
-    }
-
-    return false;
-}
-
-int TWI::readByte()
-{
-    CLEAR_TWINT();
-    WAIT_FOR_TWINT();
-    uint8_t status = TW_STATUS;
-    uint8_t data = TWDR;
-
-    switch (status)
-    {
-    case TW_MR_DATA_ACK:
-    case TW_SR_DATA_ACK:
-    case TW_SR_GCALL_DATA_ACK:
-        return data;
-    }
-
-    if (!isSuppressed((TWIStatus)status))
-        dbg.error("read status '%s'\n", nameOfStatus((TWIStatus)status));
-
-    return -1;
-}
-
-int TWI::read(uint8_t *output, int count)
-{
-    int i = 0;
-    do
-    {
-        int tmp = readByte();
-        if (tmp != -1)
-        {
-            output[i++] = (uint8_t)tmp;
-        }
-        else
-        {
-            break;
-        }
-    } while (i < count);
-    return i;
-}
-
-bool TWI::write(uint8_t *data, int count, bool last)
-{
-    for (int i = 0; i < count; i++)
-    {
-        TWDR = data[i];
-        if (last && i == count - 1)
-        {
-            disconnect();
-        }
-        CLEAR_TWINT();
-        WAIT_FOR_TWINT();
-        if (last && i == count - 1)
-        {
-            connect();
-        }
-        uint8_t status = TW_STATUS;
-        if (status != TW_ST_SLA_ACK &&
-            status != TW_ST_ARB_LOST_SLA_ACK &&
-            status != TW_ST_DATA_ACK &&
-            status != TW_MT_DATA_ACK &&
-            status != TW_MT_SLA_ACK &&
-            status != TW_MT_DATA_NACK)
-        {
-            if (!isSuppressed((TWIStatus)status))
-                dbg.error("write status '%s'\n", nameOfStatus((TWIStatus)status));
-            return false;
-        }
-    }
-    return true;
-}
-
-bool TWI::write(uint8_t *data, int count)
-{
-    return write(data, count, false);
+    return slaveRequested;
 }
 
 const char *TWI::nameOfStatus(TWIStatus status)

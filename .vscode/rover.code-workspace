@@ -16,5 +16,9 @@
 			"path": "../include"
 		}
 	],
-	"settings": {}
+	"settings": {
+		"files.associations": {
+			"i2cslave.h": "c"
+		}
+	}
 }

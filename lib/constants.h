@@ -1,7 +1,7 @@
 #ifndef _CONSTANTS_H_
 #define _CONSTANTS_H_
 
-#define DRIVETRAIN_I2C 0xA5
+#define DRIVETRAIN_I2C 0xA4
 #define ENVIRONMENT_I2C 0xA6
 
 #define CMD_NONE 0x00

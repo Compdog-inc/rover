@@ -13,6 +13,7 @@
 #include <serialize.h>
 
 DebugInterface debug;
+ByteStream *i2c;
 
 float targetLeftPower = 0.0f;
 float targetRightPower = 0.0f;
@@ -129,51 +130,57 @@ bool processCommand(Command cmd, unsigned long delta)
     return true;
 }
 
-#define OK(val) \
-    if (!val)   \
-        return;
-
 void requestData()
 {
     uint8_t buf[4];
 
     // return the current motor speeds
     encodeFloat(buf, frontLeftController.getSpeed());
-    OK(TWI::write(buf, 4));
+    if (i2c->write(buf, 0, 4) != 4)
+        return;
     encodeFloat(buf, frontRightController.getSpeed());
-    OK(TWI::write(buf, 4));
+    if (i2c->write(buf, 0, 4) != 4)
+        return;
     encodeFloat(buf, centerLeftController.getSpeed());
-    OK(TWI::write(buf, 4));
+    if (i2c->write(buf, 0, 4) != 4)
+        return;
     encodeFloat(buf, centerRightController.getSpeed());
-    OK(TWI::write(buf, 4));
+    if (i2c->write(buf, 0, 4) != 4)
+        return;
     encodeFloat(buf, backLeftController.getSpeed());
-    OK(TWI::write(buf, 4));
+    if (i2c->write(buf, 0, 4) != 4)
+        return;
     encodeFloat(buf, backRightController.getSpeed());
-    OK(TWI::write(buf, 4));
+    if (i2c->write(buf, 0, 4) != 4)
+        return;
 
     // return the current command id
-    OK(TWI::write(&currentCommand.id, 1));
+    if (i2c->write(&currentCommand.id, 0, 1) != 1)
+        return;
 
     // return the left and right drivetrain power
     encodeFloat(buf, targetLeftPower);
-    OK(TWI::write(buf, 4));
+    if (i2c->write(buf, 0, 4) != 4)
+        return;
     encodeFloat(buf, targetRightPower);
-    OK(TWI::write(buf, 4));
+    if (i2c->write(buf, 0, 4) != 4)
+        return;
 
     // return the current angle
     encodeFloat(buf, currentAngle);
-    OK(TWI::write(buf, 4, true));
+    if (i2c->write(buf, 0, 4) != 4)
+        return;
 }
 
 void receiveData()
 {
-    int id = TWI::readByte();
+    int id = i2c->read();
 
     switch (id)
     {
     case CMD_DRIVETRAIN_DRIVE:
     {
-        int direction = TWI::readByte();
+        int direction = i2c->read();
         command = {};
         command.id = CMD_DRIVETRAIN_DRIVE;
         command.startTime = clock.counter();
@@ -190,7 +197,7 @@ void receiveData()
     case CMD_DRIVETRAIN_TURN:
     {
         uint8_t buf[4];
-        if (TWI::read(buf, 4) == 4)
+        if (i2c->read(buf, 0, 4) == 4)
         {
             float angle = decodeFloat(buf);
             command = {};
@@ -204,7 +211,7 @@ void receiveData()
     case CMD_DRIVETRAIN_SET_VELOCITY:
     {
         uint8_t buf[8];
-        if (TWI::read(buf, 8) == 8)
+        if (i2c->read(buf, 0, 8) == 8)
         {
             float leftVelocity = decodeFloat(buf);
             float rightVelocity = decodeFloat(buf + 4);
@@ -220,7 +227,7 @@ void receiveData()
     case CMD_DRIVETRAIN_SET_TURN_VELOCITY:
     {
         uint8_t buf[4];
-        if (TWI::read(buf, 4) == 4)
+        if (i2c->read(buf, 0, 4) == 4)
         {
             float velocity = decodeFloat(buf);
             command = {};
@@ -234,7 +241,7 @@ void receiveData()
     case CMD_DRIVETRAIN_MOVE:
     {
         uint8_t buf[4];
-        if (TWI::read(buf, 4) == 4)
+        if (i2c->read(buf, 0, 4) == 4)
         {
             float distance = decodeFloat(buf);
             command = {};
@@ -254,12 +261,8 @@ int main()
     debug.printHeader();
 
     clock.init();
-    TWI::enable();
-    TWI::connect();
-    TWI::disableGeneralCall();
-    TWI::setAddress(DRIVETRAIN_I2C);
-    TWI::setAddressMask(0x00);
-    TWI::setSlave();
+    TWI::enable(DRIVETRAIN_I2C);
+    i2c = &TWI::getStream();
 
     TWI::suppress(TWIStatus::NoInfo);
 
@@ -291,14 +294,16 @@ int main()
         }
         prevCommandExec = time;
 
+        // debug.info("i2c: %i\n", i2c->length());
+
         if (TWI::isDataRequested())
         {
             requestData();
         }
-        else if (TWI::readAvailable())
+        else if (i2c->length() > 0)
         {
             receiveData();
-            TWIStatus status = TWI::nextStatus();
+            TWIStatus status = TWI::getStatus();
             if (status != TWIStatus::Stop)
             {
                 debug.error("after read status '%s'\n", TWI::nameOfStatus(status));
