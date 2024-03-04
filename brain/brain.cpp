@@ -28,13 +28,12 @@ int main()
 
     Timer timer(&clock);
 
-    _delay_ms(250);
-    debug.info("starting\n");
-    _delay_ms(250);
+    debug.info("Requesting update\n");
+    bool ok = drivetrain.requestUpdate();
+    debug.info("Result: %s\n", ok ? "OK" : "ERROR");
+    _delay_ms(1000);
+    // drivetrain.logTelemetry();
 
-    drivetrain.drive(Direction::Forward);
-
-    debug.info("drove\n");
     return;
 
     while (1)

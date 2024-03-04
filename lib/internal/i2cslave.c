@@ -31,11 +31,8 @@ void I2C_stop(void)
     sei();
 }
 
-#include "../framework.h"
-
 ISR(TWI_vect)
 {
-    printf("s: %u\n", TW_STATUS);
     switch (TW_STATUS)
     {
     case TW_SR_DATA_ACK:

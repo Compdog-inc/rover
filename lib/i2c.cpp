@@ -4,14 +4,9 @@
 #include "internal/i2cmaster.h"
 #include "internal/i2cslave.h"
 #include "serialdebug.h"
-#include "staticlist.h"
 
-static StaticList<TWIStatus> suppress_list(TWI_SUPPRESS_MAX_COUNT);
-
-DebugInterface dbg("I2C", Version(256));
-
-bool isTransfering = false;
-bool isSlave = false;
+static bool isTransfering = false;
+static bool isSlave = false;
 static volatile bool slaveRequested = false;
 #define RECV_BUFFER_SIZE 64
 static volatile uint8_t recv_buffer[RECV_BUFFER_SIZE];
@@ -21,7 +16,6 @@ static volatile uint8_t recv_buffer_len = 0;
 
 void recv(uint8_t data)
 {
-    dbg.info("rec: %u\n", data);
     recv_buffer[recv_buffer_put_pos++] = data;
     recv_buffer_len++;
     if (recv_buffer_put_pos >= RECV_BUFFER_SIZE)
@@ -37,8 +31,6 @@ void req()
 
 static int sput(uint8_t data, ByteStream *stream)
 {
-    dbg.info("sput\n");
-
     if (isSlave)
     {
         I2C_transmitByte(data);
@@ -54,7 +46,7 @@ static int sput(uint8_t data, ByteStream *stream)
     }
 }
 
-int sget(ByteStream *stream, bool last)
+static int sget(ByteStream *stream, bool last)
 {
     if (isSlave)
     {
@@ -83,7 +75,7 @@ int sget(ByteStream *stream, bool last)
     }
 }
 
-int slen(ByteStream *stream)
+static int slen(ByteStream *stream)
 {
     if (isSlave)
     {
@@ -93,11 +85,6 @@ int slen(ByteStream *stream)
     {
         return -1;
     }
-}
-
-bool isSuppressed(TWIStatus status)
-{
-    return suppress_list.Find(status) != -1;
 }
 
 void TWI::enable()
@@ -170,7 +157,7 @@ void TWI::endTransfer()
 
 ByteStream TWI::getStream()
 {
-    return {sput, sget, slen};
+    return ByteStream(sput, sget, slen);
 }
 
 bool TWI::isDataRequested()
@@ -239,16 +226,4 @@ const char *TWI::nameOfStatus(TWIStatus status)
     default:
         return "UNKNOWN";
     }
-}
-
-void TWI::suppress(TWIStatus status)
-{
-    suppress_list.Add(status);
-}
-
-void TWI::unsuppress(TWIStatus status)
-{
-    int ind = suppress_list.Find(status);
-    if (ind != -1)
-        suppress_list.Remove(ind);
 }

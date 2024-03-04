@@ -13,7 +13,7 @@
 #include <serialize.h>
 
 DebugInterface debug;
-ByteStream *i2c;
+ByteStream i2c;
 
 float targetLeftPower = 0.0f;
 float targetRightPower = 0.0f;
@@ -130,74 +130,76 @@ bool processCommand(Command cmd, unsigned long delta)
     return true;
 }
 
-void requestData()
+Status requestData()
 {
     uint8_t buf[4];
 
     // return the current motor speeds
     encodeFloat(buf, frontLeftController.getSpeed());
-    if (i2c->write(buf, 0, 4) != 4)
-        return;
+    if (i2c.write(buf, 0, 4) != 4)
+        return Status::INCOMPLETE_DATA;
     encodeFloat(buf, frontRightController.getSpeed());
-    if (i2c->write(buf, 0, 4) != 4)
-        return;
+    if (i2c.write(buf, 0, 4) != 4)
+        return Status::INCOMPLETE_DATA;
     encodeFloat(buf, centerLeftController.getSpeed());
-    if (i2c->write(buf, 0, 4) != 4)
-        return;
+    if (i2c.write(buf, 0, 4) != 4)
+        return Status::INCOMPLETE_DATA;
     encodeFloat(buf, centerRightController.getSpeed());
-    if (i2c->write(buf, 0, 4) != 4)
-        return;
+    if (i2c.write(buf, 0, 4) != 4)
+        return Status::INCOMPLETE_DATA;
     encodeFloat(buf, backLeftController.getSpeed());
-    if (i2c->write(buf, 0, 4) != 4)
-        return;
+    if (i2c.write(buf, 0, 4) != 4)
+        return Status::INCOMPLETE_DATA;
     encodeFloat(buf, backRightController.getSpeed());
-    if (i2c->write(buf, 0, 4) != 4)
-        return;
+    if (i2c.write(buf, 0, 4) != 4)
+        return Status::INCOMPLETE_DATA;
 
     // return the current command id
-    if (i2c->write(&currentCommand.id, 0, 1) != 1)
-        return;
+    if (i2c.write(&currentCommand.id, 0, 1) != 1)
+        return Status::INCOMPLETE_DATA;
 
     // return the left and right drivetrain power
     encodeFloat(buf, targetLeftPower);
-    if (i2c->write(buf, 0, 4) != 4)
-        return;
+    if (i2c.write(buf, 0, 4) != 4)
+        return Status::INCOMPLETE_DATA;
     encodeFloat(buf, targetRightPower);
-    if (i2c->write(buf, 0, 4) != 4)
-        return;
+    if (i2c.write(buf, 0, 4) != 4)
+        return Status::INCOMPLETE_DATA;
 
     // return the current angle
     encodeFloat(buf, currentAngle);
-    if (i2c->write(buf, 0, 4) != 4)
-        return;
+    if (i2c.write(buf, 0, 4) != 4)
+        return Status::INCOMPLETE_DATA;
+
+    return Status::OK;
 }
 
-void receiveData()
+Status receiveData()
 {
-    int id = i2c->read();
+    int id = i2c.read();
 
     switch (id)
     {
     case CMD_DRIVETRAIN_DRIVE:
     {
-        int direction = i2c->read();
+        int direction = i2c.read();
         command = {};
         command.id = CMD_DRIVETRAIN_DRIVE;
         command.startTime = clock.counter();
         command.driveData.direction = (uint8_t)direction;
-        break;
+        return Status::OK;
     }
     case CMD_DRIVETRAIN_STOP:
     {
         command = {};
         command.id = CMD_DRIVETRAIN_STOP;
         command.startTime = clock.counter();
-        break;
+        return Status::OK;
     }
     case CMD_DRIVETRAIN_TURN:
     {
         uint8_t buf[4];
-        if (i2c->read(buf, 0, 4) == 4)
+        if (i2c.read(buf, 0, 4) == 4)
         {
             float angle = decodeFloat(buf);
             command = {};
@@ -206,12 +208,12 @@ void receiveData()
             command.turnData = {};
             command.turnData.angle = angle;
         }
-        break;
+        return Status::OK;
     }
     case CMD_DRIVETRAIN_SET_VELOCITY:
     {
         uint8_t buf[8];
-        if (i2c->read(buf, 0, 8) == 8)
+        if (i2c.read(buf, 0, 8) == 8)
         {
             float leftVelocity = decodeFloat(buf);
             float rightVelocity = decodeFloat(buf + 4);
@@ -222,12 +224,12 @@ void receiveData()
             command.setVelocityData.leftVelocity = leftVelocity;
             command.setVelocityData.rightVelocity = rightVelocity;
         }
-        break;
+        return Status::OK;
     }
     case CMD_DRIVETRAIN_SET_TURN_VELOCITY:
     {
         uint8_t buf[4];
-        if (i2c->read(buf, 0, 4) == 4)
+        if (i2c.read(buf, 0, 4) == 4)
         {
             float velocity = decodeFloat(buf);
             command = {};
@@ -236,12 +238,12 @@ void receiveData()
             command.setTurnVelocityData = {};
             command.setTurnVelocityData.velocity = velocity;
         }
-        break;
+        return Status::OK;
     }
     case CMD_DRIVETRAIN_MOVE:
     {
         uint8_t buf[4];
-        if (i2c->read(buf, 0, 4) == 4)
+        if (i2c.read(buf, 0, 4) == 4)
         {
             float distance = decodeFloat(buf);
             command = {};
@@ -250,7 +252,11 @@ void receiveData()
             command.moveData = {};
             command.moveData.distance = distance;
         }
-        break;
+        return Status::OK;
+    }
+    default:
+    {
+        return Status::UNKOWN_ID;
     }
     }
 }
@@ -262,9 +268,7 @@ int main()
 
     clock.init();
     TWI::enable(DRIVETRAIN_I2C);
-    i2c = &TWI::getStream();
-
-    TWI::suppress(TWIStatus::NoInfo);
+    i2c = TWI::getStream();
 
     unsigned long prevCommandExec = 0;
 
@@ -294,19 +298,20 @@ int main()
         }
         prevCommandExec = time;
 
-        // debug.info("i2c: %i\n", i2c->length());
-
         if (TWI::isDataRequested())
         {
-            requestData();
-        }
-        else if (i2c->length() > 0)
-        {
-            receiveData();
-            TWIStatus status = TWI::getStatus();
-            if (status != TWIStatus::Stop)
+            Status status = requestData();
+            if (status != Status::OK)
             {
-                debug.error("after read status '%s'\n", TWI::nameOfStatus(status));
+                debug.error("requestData returned '%s'\n", nameOfStatus(status));
+            }
+        }
+        else if (i2c.length() > 0)
+        {
+            Status status = receiveData();
+            if (status != Status::OK)
+            {
+                debug.error("receiveData returned '%s'\n", nameOfStatus(status));
             }
         }
 

@@ -16,4 +16,29 @@
 #define DRIVETRAIN_DIRECTION_FORWARD 1
 #define DRIVETRAIN_DIRECTION_BACKWARD 2
 
+enum class Status
+{
+    OK,
+    UNKOWN_ID,
+    INCOMPLETE_DATA,
+    INVALID_FORMAT
+};
+
+const char *nameOfStatus(Status status)
+{
+    switch (status)
+    {
+    case Status::OK:
+        return "OK";
+    case Status::INCOMPLETE_DATA:
+        return "INCOMPLETE_DATA";
+    case Status::INVALID_FORMAT:
+        return "INVALID_FORMAT";
+    case Status::UNKOWN_ID:
+        return "UNKNOWN_ID";
+    default:
+        return "UNKNOWN";
+    }
+}
+
 #endif

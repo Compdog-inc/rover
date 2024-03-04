@@ -22,8 +22,10 @@ int intToStr(int x, char *str, int str_size, int d)
     int i = 0;
     do
     {
+        printf("%i/%i\n", i, str_size);
         if (i < str_size)
         {
+            printf("si:%i\n", i);
             str[i++] = (x % 10) + '0';
         }
         x = x / 10;
@@ -35,12 +37,13 @@ int intToStr(int x, char *str, int str_size, int d)
     {
         if (i < str_size)
         {
+            printf("si2:%i\n", i);
             str[i++] = '0';
         }
     }
 
     reverse(str, i < str_size ? i : str_size);
-    str[i < str_size ? i : str_size - 1] = '\0';
+    str[i < str_size ? i : (str_size - 1)] = '\0';
     return i;
 }
 
@@ -60,13 +63,13 @@ void ftoa(float n, char *res, int res_size, int afterpoint)
 
     // Extract integer part
     int ipart = (int)n;
-
+    printf("i:%i\n", ipart);
     // Extract floating part
     float fpart = n - (float)ipart;
-
+    printf("fpart\n");
     // convert integer part to string
     int i = intToStr(ipart, res, res_size, 0);
-
+    printf("is:%i\n", i);
     // check for display option after point
     if (afterpoint != 0)
     {

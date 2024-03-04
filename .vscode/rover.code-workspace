@@ -18,7 +18,9 @@
 	],
 	"settings": {
 		"files.associations": {
-			"i2cslave.h": "c"
+			"i2cslave.h": "c",
+			"stdint.h": "c",
+			"i2cmaster.h": "c"
 		}
 	}
 }

@@ -8,7 +8,7 @@
 #include "serialterminal.h"
 
 DebugInterface dbgdrive("Drivetrain", Version(256));
-ByteStream *i2c;
+ByteStream i2c;
 
 Drivetrain::Drivetrain(Clock *clock)
 {
@@ -18,7 +18,7 @@ Drivetrain::Drivetrain(Clock *clock)
 void Drivetrain::enable()
 {
     TWI::enable();
-    i2c = &TWI::getStream();
+    i2c = TWI::getStream();
 }
 
 void Drivetrain::disable()
@@ -39,7 +39,7 @@ void Drivetrain::setVelocity(float left, float right)
         return;
     }
 
-    if (i2c->write(cmd, 0, 9) != 9)
+    if (i2c.write(cmd, 0, 9) != 9)
     {
         dbgdrive.error("setVelocity error sending command\n");
         return;
@@ -63,7 +63,7 @@ void Drivetrain::setTurnVelocity(float velocity)
         return;
     }
 
-    if (i2c->write(cmd, 0, 5) != 5)
+    if (i2c.write(cmd, 0, 5) != 5)
     {
         dbgdrive.error("setTurnVelocity error sending command\n");
         return;
@@ -79,21 +79,20 @@ void Drivetrain::drive(Direction direction)
     uint8_t cmd[2];
     cmd[0] = CMD_DRIVETRAIN_DRIVE; // id
     cmd[1] = direction == Direction::Forward ? DRIVETRAIN_DIRECTION_FORWARD : DRIVETRAIN_DIRECTION_BACKWARD;
-    dbgdrive.array(cmd, 2);
+
     if (!TWI::sendTo(DRIVETRAIN_I2C))
     {
         dbgdrive.error("drive error addressing device\n");
         return;
     }
-    dbgdrive.info("sendto\n");
-    if (i2c->write(cmd, 0, 2) != 2)
+
+    if (i2c.write(cmd, 0, 2) != 2)
     {
         dbgdrive.error("drive error sending command\n");
         return;
     }
-    dbgdrive.info("write\n");
+
     TWI::endTransfer();
-    dbgdrive.info("end\n");
 }
 
 void Drivetrain::stop()
@@ -107,7 +106,7 @@ void Drivetrain::stop()
         return;
     }
 
-    if (i2c->write(cmd, 0, 1) != 1)
+    if (i2c.write(cmd, 0, 1) != 1)
     {
         dbgdrive.error("stop error sending command\n");
         return;
@@ -128,7 +127,7 @@ void Drivetrain::turn(float angle)
         return;
     }
 
-    if (i2c->write(cmd, 0, 5) != 5)
+    if (i2c.write(cmd, 0, 5) != 5)
     {
         dbgdrive.error("turn error sending command\n");
         return;
@@ -149,7 +148,7 @@ void Drivetrain::move(float distance)
         return;
     }
 
-    if (i2c->write(cmd, 0, 5) != 5)
+    if (i2c.write(cmd, 0, 5) != 5)
     {
         dbgdrive.error("move error sending command\n");
         return;
@@ -158,61 +157,62 @@ void Drivetrain::move(float distance)
     TWI::endTransfer();
 }
 
-void Drivetrain::requestUpdate()
+bool Drivetrain::requestUpdate()
 {
     uint8_t buf[4];
 
     if (!TWI::requestFrom(DRIVETRAIN_I2C))
-        return;
+        return false;
 
     // read the current motor speeds
-    if (i2c->read(buf, 0, 4, true) != 4)
-        return;
+    if (i2c.read(buf, 0, 4, true) != 4)
+        return false;
     frontLeftSpeed = decodeFloat(buf);
-    if (i2c->read(buf, 0, 4, true) != 4)
-        return;
+    if (i2c.read(buf, 0, 4, true) != 4)
+        return false;
     frontRightSpeed = decodeFloat(buf);
-    if (i2c->read(buf, 0, 4, true) != 4)
-        return;
+    if (i2c.read(buf, 0, 4, true) != 4)
+        return false;
     centerLeftSpeed = decodeFloat(buf);
-    if (i2c->read(buf, 0, 4, true) != 4)
-        return;
+    if (i2c.read(buf, 0, 4, true) != 4)
+        return false;
     centerRightSpeed = decodeFloat(buf);
-    if (i2c->read(buf, 0, 4, true) != 4)
-        return;
+    if (i2c.read(buf, 0, 4, true) != 4)
+        return false;
     backLeftSpeed = decodeFloat(buf);
-    if (i2c->read(buf, 0, 4, true) != 4)
-        return;
+    if (i2c.read(buf, 0, 4, true) != 4)
+        return false;
     backRightSpeed = decodeFloat(buf);
 
     // read the current command id
-    if (i2c->read(buf, 0, 1, true) != 1)
-        return;
+    if (i2c.read(buf, 0, 1, true) != 1)
+        return false;
     currentCommandId = buf[0];
 
     // read the left and right drivetrain power
-    if (i2c->read(buf, 0, 4, true) != 4)
-        return;
+    if (i2c.read(buf, 0, 4, true) != 4)
+        return false;
     currentLeftPower = decodeFloat(buf);
-    if (i2c->read(buf, 0, 4, true) != 4)
-        return;
+    if (i2c.read(buf, 0, 4, true) != 4)
+        return false;
     currentRightPower = decodeFloat(buf);
 
     // read the current angle
-    if (i2c->read(buf, 0, 4, false) != 4)
-        return;
+    if (i2c.read(buf, 0, 4, false) != 4)
+        return false;
     currentAngle = decodeFloat(buf);
+    return true;
 }
 
 void Drivetrain::logTelemetry()
 {
     char buf[20];
 
-    SerialTerminal::hideCursor();
-    SerialTerminal::moveCursor(1, 1);
+    // SerialTerminal::hideCursor();
+    // SerialTerminal::moveCursor(1, 1);
 
-    ftoa(currentLeftPower, buf, 20, 4);
-    dbgdrive.info("leftPower: %s", buf);
+    ftoa(69.0f, buf, 20, 4);
+    dbgdrive.info("leftPower: %", buf);
     SerialTerminal::eraseFromCursorEndLine();
     SerialTerminal::moveCursorToNextLine(1);
     ftoa(currentRightPower, buf, 20, 4);
@@ -251,7 +251,7 @@ void Drivetrain::logTelemetry()
     SerialTerminal::eraseFromCursorEndLine();
     SerialTerminal::moveCursorToNextLine(1);
 
-    SerialTerminal::showCursor();
+    // SerialTerminal::showCursor();
 }
 
 float Drivetrain::getLeftPower()
@@ -277,13 +277,17 @@ bool Drivetrain::isBusy()
 void Drivetrain::waitUntilAvailable()
 {
     Timer timer(clock);
-    requestUpdate();
-    while (isBusy())
+    do
     {
-        requestUpdate();
+        if (!requestUpdate())
+        {
+            dbgdrive.error("requestUpdate failed!");
+            while (1)
+                ;
+        }
         logTelemetry();
-        timer.spinWait(Time::fromSeconds(0.03f));
-    }
+        timer.spinWait(Time::fromSeconds(1.0f));
+    } while (!isBusy());
 }
 
 float Drivetrain::getLeftVelocity()

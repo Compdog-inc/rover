@@ -3,10 +3,6 @@
 
 #include "bytestream.h"
 
-#ifndef TWI_SUPPRESS_MAX_COUNT
-#define TWI_SUPPRESS_MAX_COUNT 16
-#endif
-
 enum class TWIStatus
 {
     /// @brief Start condition transmitted
@@ -94,9 +90,6 @@ namespace TWI
     bool isDataRequested();
 
     const char *nameOfStatus(TWIStatus status);
-
-    void suppress(TWIStatus status);
-    void unsuppress(TWIStatus status);
 }
 
 #endif

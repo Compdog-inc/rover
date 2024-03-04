@@ -23,7 +23,7 @@ typedef struct Drivetrain
     void turn(float angle);
     void move(float distance);
 
-    void requestUpdate();
+    bool requestUpdate();
     void logTelemetry();
 
     float getLeftPower();

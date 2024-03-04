@@ -7,7 +7,14 @@
 typedef struct ByteStream
 {
 public:
-    ByteStream(int (*put)(uint8_t, ByteStream *), int (*get)(ByteStream *, bool last), int (*len)(ByteStream *));
+    ByteStream(int (*put)(uint8_t, ByteStream *), int (*get)(ByteStream *, bool), int (*len)(ByteStream *));
+    ByteStream()
+    {
+        put = (int (*)(uint8_t, ByteStream *))0x1337;
+        get = (int (*)(ByteStream *, bool))0x6969;
+        len = (int (*)(ByteStream *))0x4242;
+        pos = -1;
+    }
 
     inline int length()
     {
@@ -58,13 +65,10 @@ public:
 
     inline int write(uint8_t *data, int offset, int count)
     {
-        printf("write %p\n", put);
-        put(0xA4, nullptr);
         int c = 0;
         for (int i = 0; i < count; i++)
         {
             int d = put(data[i + offset], this);
-            printf("i: %i\n", i);
             if (d >= 0)
             {
                 c++;
@@ -74,16 +78,15 @@ public:
                 break;
             }
         }
-        printf("done %i\n", c);
         pos += c;
         return c;
     }
 
 private:
-    int pos;                             /* bytes read or written so far */
-    int (*put)(uint8_t, ByteStream *);   /* function to write one byte to stream */
-    int (*get)(ByteStream *, bool last); /* function to read one byte from stream */
-    int (*len)(ByteStream *);            /* function to get length of stream */
+    int pos;                           /* bytes read or written so far */
+    int (*put)(uint8_t, ByteStream *); /* function to write one byte to stream */
+    int (*get)(ByteStream *, bool);    /* function to read one byte from stream */
+    int (*len)(ByteStream *);          /* function to get length of stream */
 } ByteStream;
 
 #endif
