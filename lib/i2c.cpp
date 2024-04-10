@@ -8,7 +8,7 @@
 static bool isTransfering = false;
 static bool isSlave = false;
 static volatile bool slaveRequested = false;
-#define RECV_BUFFER_SIZE 64
+#define RECV_BUFFER_SIZE 16
 static volatile uint8_t recv_buffer[RECV_BUFFER_SIZE];
 static volatile uint8_t recv_buffer_put_pos = 0;
 static volatile uint8_t recv_buffer_get_pos = 0;

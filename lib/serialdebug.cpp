@@ -35,8 +35,24 @@ void DebugInterface::printHeader()
 {
     SerialTerminal::resetMode();
     SerialTerminal::setForegroundColor(TerminalColor::BrightCyan);
-    printf("------- SerialDebug Interface --------\r\n    %s, v%u.%u.%u.%u\r\n--------------------------------------\r\n", name, version.major, version.minor, version.patch, version.build);
+    printf_P(PSTR("------- SerialDebug Interface --------\r\n    %s, v%u.%u.%u.%u\r\n--------------------------------------\r\n"), name, version.major, version.minor, version.patch, version.build);
     SerialTerminal::setForegroundColor(TerminalColor::Default);
+}
+
+void DebugInterface::info_P(const char *__fmt, ...)
+{
+    va_list args;
+
+    va_start(args, __fmt);
+
+    SerialTerminal::setForegroundColor(TerminalColor::White);
+    SerialTerminal::boldMode(true);
+    printf_P(PSTR("[INFO/%s]: "), name);
+    SerialTerminal::boldMode(false);
+    vfprintf_P(stdout, __fmt, args);
+    SerialTerminal::setForegroundColor(TerminalColor::Default);
+
+    va_end(args);
 }
 
 void DebugInterface::info(const char *__fmt, ...)
@@ -47,9 +63,9 @@ void DebugInterface::info(const char *__fmt, ...)
 
     SerialTerminal::setForegroundColor(TerminalColor::White);
     SerialTerminal::boldMode(true);
-    printf("[INFO/%s]: ", name);
+    printf_P(PSTR("[INFO/%s]: "), name);
     SerialTerminal::boldMode(false);
-    vprintf(__fmt, args);
+    vfprintf(stdout, __fmt, args);
     SerialTerminal::setForegroundColor(TerminalColor::Default);
 
     va_end(args);
@@ -63,9 +79,25 @@ void DebugInterface::warn(const char *__fmt, ...)
 
     SerialTerminal::setForegroundColor(TerminalColor::Yellow);
     SerialTerminal::boldMode(true);
-    printf("[WARN/%s]: ", name);
+    printf_P(PSTR("[WARN/%s]: "), name);
     SerialTerminal::boldMode(false);
-    vprintf(__fmt, args);
+    vfprintf(stdout, __fmt, args);
+    SerialTerminal::setForegroundColor(TerminalColor::Default);
+
+    va_end(args);
+}
+
+void DebugInterface::warn_P(const char *__fmt, ...)
+{
+    va_list args;
+
+    va_start(args, __fmt);
+
+    SerialTerminal::setForegroundColor(TerminalColor::Yellow);
+    SerialTerminal::boldMode(true);
+    printf_P(PSTR("[WARN/%s]: "), name);
+    SerialTerminal::boldMode(false);
+    vfprintf_P(stdout, __fmt, args);
     SerialTerminal::setForegroundColor(TerminalColor::Default);
 
     va_end(args);
@@ -79,9 +111,25 @@ void DebugInterface::error(const char *__fmt, ...)
 
     SerialTerminal::setForegroundColor(TerminalColor::Red);
     SerialTerminal::boldMode(true);
-    printf("[ERROR/%s]: ", name);
+    printf_P(PSTR("[ERROR/%s]: "), name);
     SerialTerminal::boldMode(false);
-    vprintf(__fmt, args);
+    vfprintf(stdout, __fmt, args);
+    SerialTerminal::setForegroundColor(TerminalColor::Default);
+
+    va_end(args);
+}
+
+void DebugInterface::error_P(const char *__fmt, ...)
+{
+    va_list args;
+
+    va_start(args, __fmt);
+
+    SerialTerminal::setForegroundColor(TerminalColor::Red);
+    SerialTerminal::boldMode(true);
+    printf_P(PSTR("[ERROR/%s]: "), name);
+    SerialTerminal::boldMode(false);
+    vfprintf_P(stdout, __fmt, args);
     SerialTerminal::setForegroundColor(TerminalColor::Default);
 
     va_end(args);
@@ -91,15 +139,15 @@ void DebugInterface::array(uint8_t *buf, int size)
 {
     SerialTerminal::setForegroundColor(TerminalColor::Magenta);
     SerialTerminal::boldMode(true);
-    printf("[TRACE/%s]:", name);
+    printf_P(PSTR("[TRACE/%s]:"), name);
     SerialTerminal::boldMode(false);
-    printf(" [");
+    printf_P(PSTR(" ["));
     for (int i = 0; i < size; i++)
     {
-        printf("%u", buf[i]);
+        printf_P(PSTR("%u"), buf[i]);
         if (i < size - 1)
             putchar(',');
     }
-    printf("]\n");
+    printf_P(PSTR("]\n"));
     SerialTerminal::setForegroundColor(TerminalColor::Default);
 }

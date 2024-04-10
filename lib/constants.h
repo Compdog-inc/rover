@@ -16,12 +16,15 @@
 #define DRIVETRAIN_DIRECTION_FORWARD 1
 #define DRIVETRAIN_DIRECTION_BACKWARD 2
 
+#define COMMAND_QUEUE_SIZE 16
+
 enum class Status
 {
     OK,
     UNKOWN_ID,
     INCOMPLETE_DATA,
-    INVALID_FORMAT
+    INVALID_FORMAT,
+    CORRUPTED
 };
 
 const char *nameOfStatus(Status status)
@@ -36,6 +39,8 @@ const char *nameOfStatus(Status status)
         return "INVALID_FORMAT";
     case Status::UNKOWN_ID:
         return "UNKNOWN_ID";
+    case Status::CORRUPTED:
+        return "CORRUPTED";
     default:
         return "UNKNOWN";
     }

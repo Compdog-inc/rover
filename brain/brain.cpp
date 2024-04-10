@@ -5,6 +5,7 @@
 #include <serialdebug.h>
 #include <clock.h>
 #include <timer.h>
+#include <radio.h>
 
 DebugInterface debug;
 
@@ -16,6 +17,8 @@ IOPort io = io_port_default;
 
 int main()
 {
+    io.reset();
+
     debug = DebugInterface("Brain", CURRENT_VERSION);
     debug.printHeader();
 
@@ -23,34 +26,40 @@ int main()
     drivetrain.enable();
     sei();
 
-    io.reset();
+    Timer timer(&clock);
+    Radio radio = Radio(&io);
+
     io.set_dir(LED_PIN, IODir::Out);
 
-    Timer timer(&clock);
+    debug.info_P(PSTR("Setting up radio\n"));
+    radio.enterSetup();
+    radio.enable();
+    timer.spinWait(Time::fromSeconds(0.4f));
 
-    debug.info("Requesting update\n");
-    bool ok = drivetrain.requestUpdate();
-    debug.info("Result: %s\n", ok ? "OK" : "ERROR");
-    _delay_ms(1000);
-    // drivetrain.logTelemetry();
+    radio.setChannel(42);
+    radio.setBaud(9600L);
+    radio.setMode(RadioMode::Normal);
+    radio.setPower(RADIO_POWER_20);
 
-    return;
+    debug.info_P(PSTR("Radio setup done\n"));
 
-    while (1)
-    {
-        drivetrain.waitUntilAvailable();
-        drivetrain.drive(Direction::Forward);
-        drivetrain.waitUntilAvailable();
-        drivetrain.setVelocity(-1.0f, 1.0f);
-        drivetrain.waitUntilAvailable();
-        timer.spinWait(Time::fromSeconds(1.0f));
-        drivetrain.drive(Direction::Backward);
-        drivetrain.waitUntilAvailable();
-        drivetrain.setVelocity(1.0f, -1.0f);
-        drivetrain.waitUntilAvailable();
-        timer.spinWait(Time::fromSeconds(1.0f));
-        drivetrain.stop();
-        drivetrain.waitUntilAvailable();
-        timer.spinWait(Time::fromSeconds(1.0f));
-    }
+    radio.exitSetup();
+    timer.spinWait(Time::fromSeconds(0.8f));
+
+    debug.info_P(PSTR("Radio ready\n"));
+
+    radio.send(0xAB);
+    radio.send(0xCD);
+    radio.send(0xEF);
+    radio.send(0x13);
+
+    // drivetrain.drive(Direction::Forward);
+
+    // while (1)
+    // {
+    //     drivetrain.setVelocity(1, 1);
+    //     timer.spinWait(Time::fromSeconds(0.6f));
+    //     drivetrain.setVelocity(1, -1);
+    //     timer.spinWait(Time::fromSeconds(0.3f));
+    // }
 }

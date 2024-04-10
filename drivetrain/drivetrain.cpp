@@ -1,4 +1,5 @@
 #include <framework.h>
+#include <string.h>
 #include <constants.h>
 #include <ioutils.h>
 #include <clock.h>
@@ -11,6 +12,7 @@
 #include <serialdebug.h>
 #include "commands.h"
 #include <serialize.h>
+#include <staticqueue.h>
 
 DebugInterface debug;
 ByteStream i2c;
@@ -22,8 +24,7 @@ float rightVelocity = 1.0f;
 float turnVelocity = 1.0f;
 float currentAngle = 0.0f;
 
-Command command = {};
-Command currentCommand = {};
+static StaticQueue<Command *> command_queue(COMMAND_QUEUE_SIZE);
 
 Clock clock;
 
@@ -78,14 +79,16 @@ bool allWheelsAtTarget()
 }
 
 // Processes a command and return true if it is complete, false if it needs to be called again
-bool processCommand(Command cmd, unsigned long delta)
+bool processCommand(Command *cmd, unsigned long delta)
 {
-    switch (cmd.id)
+    if (cmd == nullptr)
+        return true;
+    switch (cmd->id)
     {
     case CMD_DRIVETRAIN_DRIVE:
     {
         // Get target drivetrain power based off direction
-        float targetPower = cmd.driveData.direction == DRIVETRAIN_DIRECTION_FORWARD ? 1.0f : -1.0f;
+        float targetPower = cmd->driveData.direction == DRIVETRAIN_DIRECTION_FORWARD ? 1.0f : -1.0f;
 
         targetLeftPower = targetPower;
         targetRightPower = targetPower;
@@ -110,14 +113,14 @@ bool processCommand(Command cmd, unsigned long delta)
     }
     case CMD_DRIVETRAIN_SET_VELOCITY:
     {
-        leftVelocity = cmd.setVelocityData.leftVelocity;
-        rightVelocity = cmd.setVelocityData.rightVelocity;
+        leftVelocity = cmd->setVelocityData.leftVelocity;
+        rightVelocity = cmd->setVelocityData.rightVelocity;
         setPIDTargets();
         return allWheelsAtTarget();
     }
     case CMD_DRIVETRAIN_SET_TURN_VELOCITY:
     {
-        turnVelocity = cmd.setTurnVelocityData.velocity;
+        turnVelocity = cmd->setTurnVelocityData.velocity;
         return true;
     }
     case CMD_DRIVETRAIN_MOVE:
@@ -155,7 +158,8 @@ Status requestData()
         return Status::INCOMPLETE_DATA;
 
     // return the current command id
-    if (i2c.write(&currentCommand.id, 0, 1) != 1)
+    uint8_t id = -1;
+    if (i2c.write(&id, 0, 1) != 1)
         return Status::INCOMPLETE_DATA;
 
     // return the left and right drivetrain power
@@ -176,6 +180,9 @@ Status requestData()
 
 Status receiveData()
 {
+    Command *command = (Command *)malloc(sizeof(Command));
+    memset(command, 0, sizeof(Command));
+
     int id = i2c.read();
 
     switch (id)
@@ -183,18 +190,16 @@ Status receiveData()
     case CMD_DRIVETRAIN_DRIVE:
     {
         int direction = i2c.read();
-        command = {};
-        command.id = CMD_DRIVETRAIN_DRIVE;
-        command.startTime = clock.counter();
-        command.driveData.direction = (uint8_t)direction;
-        return Status::OK;
+        command->id = CMD_DRIVETRAIN_DRIVE;
+        command->startTime = clock.counter();
+        command->driveData.direction = (uint8_t)direction;
+        break;
     }
     case CMD_DRIVETRAIN_STOP:
     {
-        command = {};
-        command.id = CMD_DRIVETRAIN_STOP;
-        command.startTime = clock.counter();
-        return Status::OK;
+        command->id = CMD_DRIVETRAIN_STOP;
+        command->startTime = clock.counter();
+        break;
     }
     case CMD_DRIVETRAIN_TURN:
     {
@@ -202,13 +207,12 @@ Status receiveData()
         if (i2c.read(buf, 0, 4) == 4)
         {
             float angle = decodeFloat(buf);
-            command = {};
-            command.id = CMD_DRIVETRAIN_TURN;
-            command.startTime = clock.counter();
-            command.turnData = {};
-            command.turnData.angle = angle;
+            command->id = CMD_DRIVETRAIN_TURN;
+            command->startTime = clock.counter();
+            command->turnData = {};
+            command->turnData.angle = angle;
         }
-        return Status::OK;
+        break;
     }
     case CMD_DRIVETRAIN_SET_VELOCITY:
     {
@@ -217,14 +221,13 @@ Status receiveData()
         {
             float leftVelocity = decodeFloat(buf);
             float rightVelocity = decodeFloat(buf + 4);
-            command = {};
-            command.id = CMD_DRIVETRAIN_SET_VELOCITY;
-            command.startTime = clock.counter();
-            command.setVelocityData = {};
-            command.setVelocityData.leftVelocity = leftVelocity;
-            command.setVelocityData.rightVelocity = rightVelocity;
+            command->id = CMD_DRIVETRAIN_SET_VELOCITY;
+            command->startTime = clock.counter();
+            command->setVelocityData = {};
+            command->setVelocityData.leftVelocity = leftVelocity;
+            command->setVelocityData.rightVelocity = rightVelocity;
         }
-        return Status::OK;
+        break;
     }
     case CMD_DRIVETRAIN_SET_TURN_VELOCITY:
     {
@@ -232,13 +235,12 @@ Status receiveData()
         if (i2c.read(buf, 0, 4) == 4)
         {
             float velocity = decodeFloat(buf);
-            command = {};
-            command.id = CMD_DRIVETRAIN_SET_TURN_VELOCITY;
-            command.startTime = clock.counter();
-            command.setTurnVelocityData = {};
-            command.setTurnVelocityData.velocity = velocity;
+            command->id = CMD_DRIVETRAIN_SET_TURN_VELOCITY;
+            command->startTime = clock.counter();
+            command->setTurnVelocityData = {};
+            command->setTurnVelocityData.velocity = velocity;
         }
-        return Status::OK;
+        break;
     }
     case CMD_DRIVETRAIN_MOVE:
     {
@@ -246,19 +248,28 @@ Status receiveData()
         if (i2c.read(buf, 0, 4) == 4)
         {
             float distance = decodeFloat(buf);
-            command = {};
-            command.id = CMD_DRIVETRAIN_MOVE;
-            command.startTime = clock.counter();
-            command.moveData = {};
-            command.moveData.distance = distance;
+            command->id = CMD_DRIVETRAIN_MOVE;
+            command->startTime = clock.counter();
+            command->moveData = {};
+            command->moveData.distance = distance;
         }
-        return Status::OK;
+        break;
     }
     default:
     {
+        free(command);
         return Status::UNKOWN_ID;
     }
     }
+
+    bool ok = command_queue.Enqueue(command);
+    if (!ok)
+    {
+        free(command);
+        return Status::CORRUPTED;
+    }
+
+    return Status::OK;
 }
 
 int main()
@@ -272,29 +283,16 @@ int main()
 
     unsigned long prevCommandExec = 0;
 
+    Command *currentCommand = nullptr;
+
     while (1)
     {
         unsigned long time = clock.counter();
         // Execute current command
         if (processCommand(currentCommand, time - prevCommandExec))
         {
-            // Check if it has new command queued and set that as current command
-            if (command.startTime != currentCommand.startTime)
-            {
-                if (currentCommand.id != CMD_NONE)
-                {
-                    debug.info("Command finished [%u/%lu] -> [%u/%lu]\n", currentCommand.id, currentCommand.startTime, command.id, command.startTime);
-                }
-                else
-                {
-                    debug.info("New command [%u/%lu]\n", command.id, command.startTime);
-                }
-                currentCommand = command;
-            }
-            else // Else set current command to None
-            {
-                currentCommand.id = CMD_NONE;
-            }
+            free(currentCommand);
+            currentCommand = command_queue.Dequeue();
         }
         prevCommandExec = time;
 

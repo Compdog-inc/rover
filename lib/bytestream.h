@@ -39,10 +39,10 @@ public:
 
     inline int read(uint8_t *buf, int offset, int count, bool leaveOpen)
     {
-        int c = 0;
+        int c = 0, d;
         for (int i = 0; i < count; i++)
         {
-            int d = get(this, !leaveOpen && i == count - 1);
+            d = get(this, !leaveOpen && i == count - 1);
             if (d >= 0)
             {
                 buf[i + offset] = d;
@@ -65,10 +65,10 @@ public:
 
     inline int write(uint8_t *data, int offset, int count)
     {
-        int c = 0;
+        int c = 0, d;
         for (int i = 0; i < count; i++)
         {
-            int d = put(data[i + offset], this);
+            d = put(data[i + offset], this);
             if (d >= 0)
             {
                 c++;

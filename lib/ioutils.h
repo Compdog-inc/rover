@@ -50,19 +50,19 @@
 // #define IOPORT_SHARED_HISTORY
 
 #ifndef IO_IRQ_PCINT0
-#define IO_IRQ_PCINT0 true
+#define IO_IRQ_PCINT0 false
 #endif
 
 #ifndef IO_IRQ_PCINT1
-#define IO_IRQ_PCINT1 true
+#define IO_IRQ_PCINT1 false
 #endif
 
 #ifndef IO_IRQ_PCINT2
-#define IO_IRQ_PCINT2 true
+#define IO_IRQ_PCINT2 false
 #endif
 
 #ifndef IO_IRQ_MAX_COUNT
-#define IO_IRQ_MAX_COUNT 16
+#define IO_IRQ_MAX_COUNT 4
 #endif
 
 /// @brief IO pin direction

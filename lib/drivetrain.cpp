@@ -35,13 +35,13 @@ void Drivetrain::setVelocity(float left, float right)
 
     if (!TWI::sendTo(DRIVETRAIN_I2C))
     {
-        dbgdrive.error("setVelocity error addressing device\n");
+        dbgdrive.error_P(PSTR("setVelocity error addressing device\n"));
         return;
     }
 
     if (i2c.write(cmd, 0, 9) != 9)
     {
-        dbgdrive.error("setVelocity error sending command\n");
+        dbgdrive.error_P(PSTR("setVelocity error sending command\n"));
         return;
     }
 
@@ -59,13 +59,13 @@ void Drivetrain::setTurnVelocity(float velocity)
 
     if (!TWI::sendTo(DRIVETRAIN_I2C))
     {
-        dbgdrive.error("setTurnVelocity error addressing device\n");
+        dbgdrive.error_P(PSTR("setTurnVelocity error addressing device\n"));
         return;
     }
 
     if (i2c.write(cmd, 0, 5) != 5)
     {
-        dbgdrive.error("setTurnVelocity error sending command\n");
+        dbgdrive.error_P(PSTR("setTurnVelocity error sending command\n"));
         return;
     }
 
@@ -82,13 +82,13 @@ void Drivetrain::drive(Direction direction)
 
     if (!TWI::sendTo(DRIVETRAIN_I2C))
     {
-        dbgdrive.error("drive error addressing device\n");
+        dbgdrive.error_P(PSTR("drive error addressing device\n"));
         return;
     }
 
     if (i2c.write(cmd, 0, 2) != 2)
     {
-        dbgdrive.error("drive error sending command\n");
+        dbgdrive.error_P(PSTR("drive error sending command\n"));
         return;
     }
 
@@ -102,13 +102,13 @@ void Drivetrain::stop()
 
     if (!TWI::sendTo(DRIVETRAIN_I2C))
     {
-        dbgdrive.error("stop error addressing device\n");
+        dbgdrive.error_P(PSTR("stop error addressing device\n"));
         return;
     }
 
     if (i2c.write(cmd, 0, 1) != 1)
     {
-        dbgdrive.error("stop error sending command\n");
+        dbgdrive.error_P(PSTR("stop error sending command\n"));
         return;
     }
 
@@ -123,13 +123,13 @@ void Drivetrain::turn(float angle)
 
     if (!TWI::sendTo(DRIVETRAIN_I2C))
     {
-        dbgdrive.error("turn error addressing device\n");
+        dbgdrive.error_P(PSTR("turn error addressing device\n"));
         return;
     }
 
     if (i2c.write(cmd, 0, 5) != 5)
     {
-        dbgdrive.error("turn error sending command\n");
+        dbgdrive.error_P(PSTR("turn error sending command\n"));
         return;
     }
 
@@ -144,13 +144,13 @@ void Drivetrain::move(float distance)
 
     if (!TWI::sendTo(DRIVETRAIN_I2C))
     {
-        dbgdrive.error("move error addressing device\n");
+        dbgdrive.error_P(PSTR("move error addressing device\n"));
         return;
     }
 
     if (i2c.write(cmd, 0, 5) != 5)
     {
-        dbgdrive.error("move error sending command\n");
+        dbgdrive.error_P(PSTR("move error sending command\n"));
         return;
     }
 
@@ -206,7 +206,7 @@ bool Drivetrain::requestUpdate()
 
 void Drivetrain::logTelemetry()
 {
-    char buf[20];
+    char buf[10];
 
     // SerialTerminal::hideCursor();
     // SerialTerminal::moveCursor(1, 1);
@@ -281,7 +281,7 @@ void Drivetrain::waitUntilAvailable()
     {
         if (!requestUpdate())
         {
-            dbgdrive.error("requestUpdate failed!");
+            dbgdrive.error_P(PSTR("requestUpdate failed!"));
             while (1)
                 ;
         }
